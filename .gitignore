@@ -1,0 +1,237 @@
+# See http://help.github.com/ignore-files/ for more about ignoring files.
+
+# Compiled output
+/dist
+/tmp
+/out-tsc
+# Only exists if Bazel was run
+/bazel-out
+
+# Dependencies
+/node_modules
+
+# profiling files
+chrome-profiler-events*.json
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/*
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Angular specific
+/.angular/cache
+.sass-cache/
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+/dist/
+/build/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# next.js build output
+.next
+
+# nuxt.js build output
+.nuxt
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Temporary folders
+tmp/
+temp/
+
+# Log files
+*.log
+logs
+*.log.*
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Angular and TypeScript
+*.tsbuildinfo
+.tscache/
+
+# Webpack
+.webpack/
+
+# ESLint
+.eslintcache
+
+# Stylelint
+.stylelintcache
+
+# Prettier
+.prettierignore
+
+# Package manager lock files (keep one)
+# yarn.lock
+# package-lock.json
+# pnpm-lock.yaml
+
+# Local development
+.local
+.cache
+
+# Testing
+/coverage
+/.nyc_output
+*.lcov
+
+# Storybook build outputs
+storybook-static
+
+# Chromatic
+chromatic-build.zip
+
+# Firebase
+.firebase
+.firebaserc
+firebase-debug.log
+firebase-debug.*.log
+
+# Vercel
+.vercel
+
+# Netlify
+.netlify
+
+# Docker
+.dockerignore
+Dockerfile.dev
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+
+# Configuration overrides
+config/local.json
+config/production.json
+config/development.json
+
+# OpenTok/Vonage credentials (security)
+opentok-config.json
+vonage-config.json
+
+# Meeting recordings and screenshots (if stored locally)
+recordings/
+screenshots/
+uploads/
+
+# Generated documentation
+docs/generated/
+
+# Performance monitoring
+.clinic/
+clinic.html
+
+# Bundle analyzer
+bundle-analyzer-report.html
+
+# Source maps (optional - uncomment to ignore)
+# *.map
+
+# TypeDoc
+docs/
+
+# Compodoc
+documentation/
+
+# Angular Language Service
+.angular/
