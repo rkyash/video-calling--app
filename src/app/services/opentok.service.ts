@@ -143,7 +143,15 @@ export class OpenTokService {
   }
 
   private removeParticipant(connectionId: string): void {
+    const leavingParticipant = this.participants.find(p => p.connectionId === connectionId);
     this.participants = this.participants.filter(p => p.connectionId !== connectionId);
+    
+    // If host is leaving, disconnect all participants and end the meeting
+    if (leavingParticipant?.isHost) {
+      this.endMeetingForAll();
+      return;
+    }
+    
     this.participantsSubject.next([...this.participants]);
     
     const subscriber = this.subscribers.get(connectionId);
@@ -169,6 +177,10 @@ export class OpenTokService {
       case 'signal:screenShare':
         this.updateParticipant(event.from?.connectionId || '', { isScreenSharing: data.sharing });
         break;
+      case 'signal:hostLeft':
+        // Host has left, end meeting for all participants
+        this.endMeetingForAll();
+        break;
     }
   }
 
@@ -178,6 +190,19 @@ export class OpenTokService {
       this.participants[participantIndex] = { ...this.participants[participantIndex], ...updates };
       this.participantsSubject.next([...this.participants]);
     }
+  }
+
+  private endMeetingForAll(): void {
+    // Notify all participants that host has left and meeting is ending
+    this.errorSubject.next('Host has left the meeting. Meeting ended.');
+    
+    // Signal to all participants that host has left and meeting is ending
+    this.sendSignal('hostLeft', { message: 'Host has left the meeting. Meeting ended.' });
+    
+    // Disconnect the current session after a brief delay to allow signal to be sent
+    setTimeout(() => {
+      this.disconnect();
+    }, 1000);
   }
 
   toggleAudio(): void {

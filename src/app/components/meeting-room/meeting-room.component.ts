@@ -1145,7 +1145,16 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       }
     });
 
-    this.subscriptions.push(participantsSub, chatSub, recordingSub, connectionSub);
+    // Subscribe to errors (including host disconnect)
+    const errorSub = this.openTokService.error$.subscribe(error => {
+      if (error && error.includes('Host has left')) {
+        // Host has left, redirect all participants to home
+        alert('Host has left the meeting. The meeting has ended.');
+        this.router.navigate(['/']);
+      }
+    });
+
+    this.subscriptions.push(participantsSub, chatSub, recordingSub, connectionSub, errorSub);
   }
 
   getVideoGridClass(): string {
@@ -1282,10 +1291,14 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   leaveMeeting(): void {
     const confirmLeave = confirm('Are you sure you want to leave the meeting?');
     if (confirmLeave) {
-      this.openTokService.disconnect();
       if (this.currentUser?.isHost) {
-        this.meetingService.endMeeting();
+        // Host is leaving - this will end the meeting for all participants
+        this.meetingService.hostLeft(this.currentUser.name);
+      } else {
+        // Regular participant leaving
+        this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
       }
+      this.openTokService.disconnect();
       this.router.navigate(['/']);
     }
   }

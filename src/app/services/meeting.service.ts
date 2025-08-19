@@ -131,6 +131,15 @@ export class MeetingService {
     }
   }
 
+  hostLeft(hostName: string): void {
+    this.addSystemMessage(`${hostName} (Host) left the meeting. Meeting ended for all participants.`);
+    this.endMeeting();
+  }
+
+  participantLeft(participantName: string): void {
+    this.addSystemMessage(`${participantName} left the meeting`);
+  }
+
   endMeeting(): void {
     this.addSystemMessage('Meeting ended');
     this.currentMeetingSubject.next(null);
