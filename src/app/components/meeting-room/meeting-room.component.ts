@@ -17,7 +17,7 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
   template: `
     <div class="meeting-room" [class.fullscreen]="isFullscreen">
       <!-- Meeting Header -->
-      <header class="meeting-header" [class.hidden]="isFullscreen">
+      <!-- <header class="meeting-header" [class.hidden]="isFullscreen">
         <div class="meeting-info">
           <h2>{{ currentMeeting?.name || 'Meeting Room' }}</h2>
           <div class="meeting-details">
@@ -42,7 +42,7 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
             <i class="fas fa-sign-out-alt"></i> Leave
           </button>
         </div>
-      </header>
+      </header> -->
 
       <!-- Main Meeting Content -->
       <div class="meeting-content">
@@ -220,7 +220,18 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
 
       <!-- Meeting Controls -->
       <div class="meeting-controls" [class.hidden]="isFullscreen">
-        <div class="control-group">
+        <!-- Recording Indicator (Left Side) -->
+        <div class="recording-info">
+          <div class="recording-indicator" *ngIf="isRecording">
+            <div class="recording-dot"></div>
+            <span class="recording-text">REC</span>
+            <span class="recording-timer">{{ recordingDuration }}</span>
+          </div>
+        </div>
+
+        <!-- Center Control Groups -->
+        <div class="controls-center">
+          <div class="control-group">
           <!-- Audio Controls -->
           <button 
             class="control-button"
@@ -324,6 +335,10 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
             <i class="fas fa-phone-slash"></i>
           </button>
         </div>
+        </div> <!-- End controls-center -->
+        
+        <!-- Right Spacer (to balance left recording indicator) -->
+        <div class="controls-spacer"></div>
       </div>
 
       <!-- Participants Panel -->
@@ -563,19 +578,21 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
 
     .screen-share-overlay {
       position: absolute;
-      top: 1rem;
+      bottom: 1rem;
       left: 1rem;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.7);
       color: white;
       padding: 0.5rem 1rem;
       border-radius: 0.5rem;
       font-size: 0.875rem;
-      backdrop-filter: blur(4px);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
 
       .screen-share-label {
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        font-weight: 500;
 
         i {
           color: var(--primary-color);
@@ -864,12 +881,60 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
 
     .meeting-controls {
       display: flex;
-      justify-content: center;
       align-items: center;
       padding: 1.5rem 2rem;
       background: var(--dark-surface);
       border-top: 1px solid var(--dark-card);
-      gap: 2rem;
+      position: relative;
+
+      .recording-info {
+        position: absolute;
+        left: 2rem;
+        display: flex;
+        align-items: center;
+      }
+
+      .recording-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid #ef4444;
+        border-radius: 2rem;
+        padding: 0.5rem 1rem;
+        
+        .recording-dot {
+          width: 8px;
+          height: 8px;
+          background: #ef4444;
+          border-radius: 50%;
+          animation: pulse 2s infinite;
+        }
+        
+        .recording-text {
+          color: #ef4444;
+          font-weight: 600;
+          font-size: 0.875rem;
+        }
+        
+        .recording-timer {
+          color: var(--text-light);
+          font-family: 'Monaco', 'Courier New', monospace;
+          font-size: 0.875rem;
+          font-weight: 500;
+          min-width: 40px;
+        }
+      }
+
+      .controls-center {
+        display: flex;
+        gap: 2rem;
+        margin: 0 auto; /* Center the controls */
+      }
+
+      .controls-spacer {
+        width: 200px; /* Same width as recording-info area to balance */
+      }
 
       .control-group {
         display: flex;
@@ -1213,7 +1278,34 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
 
       .meeting-controls {
         padding: 1rem;
+        flex-direction: column;
         gap: 1rem;
+
+        .recording-info {
+          position: static;
+          order: -1;
+          justify-content: center;
+          margin-bottom: 0.5rem;
+        }
+
+        .recording-indicator {
+          padding: 0.375rem 0.75rem;
+          gap: 0.375rem;
+
+          .recording-text,
+          .recording-timer {
+            font-size: 0.8125rem;
+          }
+        }
+
+        .controls-center {
+          gap: 1rem;
+          margin: 0; /* Remove auto margin on mobile */
+        }
+
+        .controls-spacer {
+          display: none; /* Hide spacer on mobile */
+        }
 
         .control-button {
           width: 48px;
@@ -1245,6 +1337,11 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   newMessage: string = '';
   unreadMessages: number = 0;
   
+  // Recording timer
+  recordingStartTime: Date | null = null;
+  recordingDuration: string = '00:00';
+  private recordingTimer: any;
+  
   private subscriptions: Subscription[] = [];
 
   constructor(
@@ -1271,6 +1368,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.stopRecordingTimer();
     this.openTokService.disconnect();
   }
 
@@ -1357,6 +1455,12 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     // Subscribe to recording status
     const recordingSub = this.meetingService.isRecording$.subscribe(isRecording => {
       this.isRecording = isRecording;
+      
+      if (isRecording) {
+        this.startRecordingTimer();
+      } else {
+        this.stopRecordingTimer();
+      }
     });
 
     // Subscribe to connection status
@@ -1555,5 +1659,48 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
   trackByMessageId(_index: number, message: ChatMessage): string {
     return message.id;
+  }
+
+  // Recording Timer Methods
+  private startRecordingTimer(): void {
+    this.recordingStartTime = new Date();
+    this.recordingDuration = '00:00';
+    
+    // Update timer every second
+    this.recordingTimer = setInterval(() => {
+      if (this.recordingStartTime) {
+        const elapsed = Date.now() - this.recordingStartTime.getTime();
+        this.recordingDuration = this.formatRecordingDuration(elapsed);
+      }
+    }, 1000);
+  }
+
+  private stopRecordingTimer(): void {
+    if (this.recordingTimer) {
+      clearInterval(this.recordingTimer);
+      this.recordingTimer = null;
+    }
+    this.recordingStartTime = null;
+    this.recordingDuration = '00:00';
+  }
+
+  private formatRecordingDuration(milliseconds: number): string {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    const mm = minutes.toString().padStart(2, '0');
+    const ss = seconds.toString().padStart(2, '0');
+    
+    // Show hours if recording is over an hour
+    if (minutes >= 60) {
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      const hh = hours.toString().padStart(2, '0');
+      const mmm = remainingMinutes.toString().padStart(2, '0');
+      return `${hh}:${mmm}:${ss}`;
+    }
+    
+    return `${mm}:${ss}`;
   }
 }
