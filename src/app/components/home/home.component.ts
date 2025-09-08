@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { AuthService } from 'src/app/services/auth.service';
 
 @Component({
   selector: 'app-home',
@@ -373,20 +374,61 @@ import { Router } from '@angular/router';
     }
   `]
 })
-export class HomeComponent {
+export class HomeComponent implements OnInit, OnDestroy {
   meetingId: string = '';
+  meetingCode: string = '';
+  originSiteUrl: string = '';
+  private messageCount = 0;
+  private maxMessages = 1000;
 
-  constructor(private router: Router) {}
+  constructor(private router: Router, private authService: AuthService) { 
+    
+  }
+
+
+  ngOnDestroy(): void {
+    throw new Error('Method not implemented.');
+  }
+  ngOnInit(): void {
+    throw new Error('Method not implemented.');
+  }
 
   joinMeeting(): void {
     if (this.meetingId?.trim()) {
       let meetingId = this.meetingId.trim();
-      
+
       if (meetingId.includes('/join/')) {
         meetingId = meetingId.split('/join/')[1];
       }
-      
+
       this.router.navigate(['/join', meetingId]);
+    }
+  }
+
+  private sendReadyMessage(): void {
+    if (window.opener) {
+      console.log('Site B: Sending ready message');
+      window.opener.postMessage('ready', this.originSiteUrl);
+    }
+  }
+
+  private receiveMessage(event: MessageEvent): void {
+    console.log('receiveing message from Site A');
+    if (event.origin === this.originSiteUrl) {
+      const authToken = event.data.jwtToken;
+
+      if (authToken) {
+        console.log('Site B: Received message');
+        this.authService.setAuthToken(authToken);
+
+        // Send acknowledgment back to Site A
+        window.opener.postMessage('token_received', this.originSiteUrl);
+
+        // Remove the event listener after successful processing
+        window.removeEventListener('message', this.receiveMessage);
+
+        this.router.navigate([`/meeting/${this.meetingId}/join`]);
+      }
     }
   }
 }

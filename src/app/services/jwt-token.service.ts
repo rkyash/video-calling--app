@@ -112,18 +112,11 @@ export class JwtTokenService {
   /**
    * Extracts user roles from token
    */
-  getUserRolesFromToken(token: string): string[] {
+  getUserRolesFromToken(token: string): string {
     const decoded = this.decodeToken(token);
-    return decoded?.roles || [];
+    return decoded?.rolename || "";
   }
 
-  /**
-   * Extracts user permissions from token
-   */
-  getUserPermissionsFromToken(token: string): string[] {
-    const decoded = this.decodeToken(token);
-    return decoded?.permissions || [];
-  }
 
   /**
    * Checks if user has specific role
@@ -134,27 +127,11 @@ export class JwtTokenService {
   }
 
   /**
-   * Checks if user has specific permission
-   */
-  hasPermission(token: string, permission: string): boolean {
-    const permissions = this.getUserPermissionsFromToken(token);
-    return permissions.includes(permission);
-  }
-
-  /**
    * Checks if user has any of the specified roles
    */
   hasAnyRole(token: string, roles: string[]): boolean {
     const userRoles = this.getUserRolesFromToken(token);
     return roles.some(role => userRoles.includes(role));
-  }
-
-  /**
-   * Checks if user has any of the specified permissions
-   */
-  hasAnyPermission(token: string, permissions: string[]): boolean {
-    const userPermissions = this.getUserPermissionsFromToken(token);
-    return permissions.some(permission => userPermissions.includes(permission));
   }
 
   /**

@@ -49,11 +49,7 @@ export const permissionGuard = (requiredPermissions: string[]): CanActivateFn =>
 
     if (!authService.isAuthenticated()) {
       return router.createUrlTree(['/login']);
-    }
-
-    if (authService.hasAnyPermission(requiredPermissions)) {
-      return true;
-    }
+    }    
 
     return router.createUrlTree(['/unauthorized']);
   };

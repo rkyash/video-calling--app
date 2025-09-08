@@ -4,15 +4,22 @@ export interface JwtPayload {
   exp?: number; // Expiration time
   iss?: string; // Issuer
   aud?: string; // Audience
-  email?: string;
-  username?: string;
-  roles?: string[];
-  permissions?: string[];
-  [key: string]: any; // Allow additional custom claims
+  email?: string; 
+  UserId?: string;
+  GuId?: string;
+  roleid?: string;
+  rolename?: string;
+  firstname?: string;
+  lastname?: string;
+  usr_email?: string;
+  mobile?: string;
+  creationdate?: string;
+  isactive?: string; 
 }
 
 export interface AuthToken {
   accessToken: string;
+  fullName?: string;
   refreshToken?: string;
   tokenType?: string;
   expiresIn?: number;
@@ -21,13 +28,14 @@ export interface AuthToken {
 export interface UserProfile {
   id: string;
   email: string;
-  username: string;
+  fullName: string;
   firstName?: string;
   lastName?: string;
-  roles: string[];
-  permissions: string[];
-  avatar?: string;
-  isActive: boolean;
+  UserId?: string;
+  GuId?: string;
+  roleid?: string;
+  rolename: string;    
+  mobile?: string; 
 }
 
 export interface AuthState {

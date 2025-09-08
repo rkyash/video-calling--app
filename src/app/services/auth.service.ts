@@ -32,8 +32,7 @@ export class AuthService {
   public readonly error = this._error.asReadonly();
 
   // Computed signals
-  public readonly userRoles = computed(() => this.currentUser()?.roles || []);
-  public readonly userPermissions = computed(() => this.currentUser()?.permissions || []);
+  public readonly userRoles = computed(() => this.currentUser()?.rolename || "");
   public readonly isAdmin = computed(() => this.userRoles().includes('admin'));
 
   // Observable for components that prefer observables
@@ -62,27 +61,7 @@ export class AuthService {
     }
   }
 
-  /**
-   * Login with credentials
-   */
-  login(credentials: { email: string; password: string }): Observable<AuthToken> {
-    this._loading.set(true);
-    this._error.set(null);
-
-    const apiUrl = this.configService.getFullApiUrl('auth/login');
-    
-    return this.http.post<AuthToken>(apiUrl, credentials).pipe(
-      tap(token => {
-        this.handleSuccessfulAuth(token);
-      }),
-      catchError(error => {
-        this.handleAuthError('Login failed');
-        return throwError(() => error);
-      }),
-      tap(() => this._loading.set(false))
-    );
-  }
-
+ 
   /**
    * Logout user
    */
@@ -105,7 +84,7 @@ export class AuthService {
     }
 
     const apiUrl = this.configService.getFullApiUrl('auth/refresh');
-    
+
     return this.http.post<AuthToken>(apiUrl, { refreshToken }).pipe(
       tap(token => {
         this.handleSuccessfulAuth(token);
@@ -132,13 +111,6 @@ export class AuthService {
     return token ? this.jwtService.hasRole(token, role) : false;
   }
 
-  /**
-   * Check if user has specific permission
-   */
-  hasPermission(permission: string): boolean {
-    const token = this.getToken();
-    return token ? this.jwtService.hasPermission(token, permission) : false;
-  }
 
   /**
    * Check if user has any of the specified roles
@@ -148,13 +120,7 @@ export class AuthService {
     return token ? this.jwtService.hasAnyRole(token, roles) : false;
   }
 
-  /**
-   * Check if user has any of the specified permissions
-   */
-  hasAnyPermission(permissions: string[]): boolean {
-    const token = this.getToken();
-    return token ? this.jwtService.hasAnyPermission(token, permissions) : false;
-  }
+
 
   /**
    * Get user profile from token
@@ -165,21 +131,21 @@ export class AuthService {
 
     return {
       id: decoded.sub || '',
-      email: decoded.email || '',
-      username: decoded.username || decoded.email || '',
-      firstName: decoded['firstName'] || '',
-      lastName: decoded['lastName'] || '',
-      roles: decoded.roles || [],
-      permissions: decoded.permissions || [],
-      avatar: decoded['avatar'] || '',
-      isActive: decoded['isActive'] !== false
+      email: decoded.usr_email || '',
+      firstName: decoded.usr_email || '',
+      lastName: decoded.usr_email || '',
+      fullName: `${decoded.firstname || ''} ${decoded.lastname || ''}`.trim(),
+      UserId: decoded.UserId || '',
+      GuId: decoded.GuId || '',
+      roleid: decoded.roleid || '',
+      rolename: decoded.rolename || "",
     };
   }
 
   /**
    * Load user profile from server (optional, for additional data)
    */
-  private loadUserProfile(): void {
+  public loadUserProfile(): void {
     const token = this.getToken();
     if (!token) return;
 
@@ -210,12 +176,12 @@ export class AuthService {
     this.setAuthToken(token);
     this._isAuthenticated.set(true);
     this._error.set(null);
-    
+
     const userProfile = this.getUserProfileFromToken(token.accessToken);
     if (userProfile) {
       this._currentUser.set(userProfile);
     }
-    
+
     this.scheduleTokenRefresh(token.accessToken);
     this.updateAuthState();
   }
@@ -275,14 +241,14 @@ export class AuthService {
   }
 
   // Storage methods
-  private setAuthToken(token: AuthToken): void {
+  public setAuthToken(token: AuthToken): void {
     localStorage.setItem(TokenStorageKey.ACCESS_TOKEN, token.accessToken);
     if (token.refreshToken) {
       localStorage.setItem(TokenStorageKey.REFRESH_TOKEN, token.refreshToken);
     }
   }
 
-  private getStoredToken(): string | null {
+  public getStoredToken(): string | null {
     return localStorage.getItem(TokenStorageKey.ACCESS_TOKEN);
   }
 
