@@ -6,11 +6,31 @@ import { provideAnimations } from '@angular/platform-browser/animations';
 import { importProvidersFrom } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { authInterceptorFn } from './app/interceptors/auth.interceptor';
+import { ConfigService } from './app/services/config.service';
+import { inject } from '@angular/core';
+
+async function initializeApp() {
+  const configService = inject(ConfigService);
+  try {
+    await configService.loadConfig();
+  } catch (error) {
+    console.error('Failed to load app configuration:', error);
+    // Return resolved to prevent app from failing to start
+  }
+}
 
 bootstrapApplication(AppComponent, {
   providers: [
     provideRouter(routes),
     provideAnimations(),
-    importProvidersFrom(CommonModule, FormsModule, ReactiveFormsModule)
+    provideHttpClient(withInterceptors([authInterceptorFn])),
+    importProvidersFrom(CommonModule, FormsModule, ReactiveFormsModule),
+    {
+      provide: 'APP_INITIALIZER',
+      useFactory: initializeApp,
+      multi: true
+    }
   ]
 }).catch(err => console.error(err));

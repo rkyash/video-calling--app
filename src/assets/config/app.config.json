@@ -1,0 +1,44 @@
+{
+  "development": {
+    "apiUrl": "http://localhost:5052/api",
+    "version": "1.0.0",
+    "originSiteUrl": "http://localhost:4200",
+    "labels": {
+      "createMeeting": "meetings",
+      "joinMeeting": "JOIN_MEETING_API", 
+      "endMeeting": "END_MEETING_API",
+      "getSessionToken": "GET_SESSION_TOKEN_API",
+      "uploadScreenshot": "UPLOAD_SCREENSHOT_API"
+    },
+    "timeout": 30000,
+    "retryAttempts": 3
+  },
+  "production": {
+    "apiUrl": "https://api.yourdomain.com/api",
+    "version": "1.0.0", 
+    "originSiteUrl": "https://yourdomain.com",
+    "labels": {
+      "createMeeting": "CREATE_MEETING_API",
+      "joinMeeting": "JOIN_MEETING_API",
+      "endMeeting": "END_MEETING_API", 
+      "getSessionToken": "GET_SESSION_TOKEN_API",
+      "uploadScreenshot": "UPLOAD_SCREENSHOT_API"
+    },
+    "timeout": 30000,
+    "retryAttempts": 3
+  },
+  "staging": {
+    "apiUrl": "https://staging-api.yourdomain.com/api",
+    "version": "1.0.0",
+    "originSiteUrl": "https://staging.yourdomain.com", 
+    "labels": {
+      "createMeeting": "CREATE_MEETING_API",
+      "joinMeeting": "JOIN_MEETING_API",
+      "endMeeting": "END_MEETING_API",
+      "getSessionToken": "GET_SESSION_TOKEN_API", 
+      "uploadScreenshot": "UPLOAD_SCREENSHOT_API"
+    },
+    "timeout": 30000,
+    "retryAttempts": 3
+  }
+}

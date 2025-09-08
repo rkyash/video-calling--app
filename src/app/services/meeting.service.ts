@@ -1,6 +1,16 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { Meeting, ChatMessage } from '../models/meeting.model';
+import { BehaviorSubject, Observable, throwError } from 'rxjs';
+import { 
+  Meeting, 
+  ChatMessage, 
+  CreateMeetingRequest, 
+  MeetingData, 
+  JoinMeetingRequest, 
+  JoinMeetingData 
+} from '../models/meeting.model';
+import { ApiResponseHandler } from '../models/api-response.model';
+import { ApiService } from './api.service';
+import { ToastService } from './toast.service';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable({
@@ -8,45 +18,140 @@ import { v4 as uuidv4 } from 'uuid';
 })
 export class MeetingService {
   private currentMeetingSubject = new BehaviorSubject<Meeting | null>(null);
+  private currentMeetingDataSubject = new BehaviorSubject<MeetingData | null>(null);
+  private currentJoinDataSubject = new BehaviorSubject<JoinMeetingData | null>(null);
   private chatMessagesSubject = new BehaviorSubject<ChatMessage[]>([]);
   private isRecordingSubject = new BehaviorSubject<boolean>(false);
 
   public currentMeeting$ = this.currentMeetingSubject.asObservable();
+  public currentMeetingData$ = this.currentMeetingDataSubject.asObservable();
+  public currentJoinData$ = this.currentJoinDataSubject.asObservable();
   public chatMessages$ = this.chatMessagesSubject.asObservable();
   public isRecording$ = this.isRecordingSubject.asObservable();
 
   private chatMessages: ChatMessage[] = [];
 
-  constructor() {}
+  constructor(
+    private apiService: ApiService,
+    private toastService: ToastService
+  ) {}
 
-  createMeeting(hostName: string, meetingName: string): Meeting {
-    const meeting: Meeting = {
-      id: uuidv4(),
-      name: meetingName,
-      hostId: uuidv4(),
-      sessionId: this.generateSessionId(),
-      token: this.generateToken(),
-      apiKey: this.getApiKey(),
-      createdAt: new Date(),
-      isRecording: false
+  createMeeting(hostName: string, meetingName: string, scheduledAt?: string): Observable<MeetingData | null> {
+    const meetingRequest: CreateMeetingRequest = {
+      title: meetingName,
+      description: null,
+      scheduledAt: scheduledAt || new Date().toISOString(),
+      createdById: 1, // TODO: Get from auth service
+      isRecordingEnabled: false,
+      isScreenSharingEnabled: true,
+      maxParticipants: 20,
+      roomCode: null
     };
 
-    this.currentMeetingSubject.next(meeting);
-    this.addSystemMessage(`${hostName} created the meeting`);
-    
-    return meeting;
+    return new Observable<MeetingData | null>(observer => {
+      this.apiService.createMeeting(meetingRequest).subscribe({
+        next: (response) => {
+          if (ApiResponseHandler.isSuccess(response)) {
+            const meetingData = ApiResponseHandler.extractData(response);
+            if (meetingData) {
+              this.currentMeetingDataSubject.next(meetingData);
+              
+              // Create legacy Meeting object for backward compatibility
+              const legacyMeeting: Meeting = {
+                id: meetingData.roomCode.toString(),
+                name: meetingData.title,
+                hostId: meetingData.createdById?.toString() || '',
+                sessionId: meetingData.sessionId,
+                token: this.generateToken(),
+                apiKey: this.getApiKey(),
+                createdAt: new Date(meetingData.createdAt),
+                isRecording: meetingData.isRecordingEnabled
+              };
+              
+              this.currentMeetingSubject.next(legacyMeeting);
+              this.addSystemMessage(`${hostName} created the meeting "${meetingData.title}"`);
+              
+              observer.next(meetingData);
+              observer.complete();
+            } else {
+              const errorMessage = 'Failed to create meeting: Invalid response data';
+              console.error(errorMessage);
+              this.toastService.error('Create Failed', errorMessage);
+              this.addSystemMessage(errorMessage);
+              observer.error(new Error(errorMessage));
+            }
+          } else {
+            const errorMessage = ApiResponseHandler.getErrorMessage(response);
+            console.error('Failed to create meeting:', errorMessage);
+            this.toastService.error('Create Failed', errorMessage);
+            this.addSystemMessage(`Failed to create meeting: ${errorMessage}`);
+            observer.error(new Error(errorMessage));
+          }
+        },
+        error: (error) => {
+          console.error('API error creating meeting:', error);
+          const errorMessage = this.getErrorMessage(error);
+          this.toastService.error('Create Failed', errorMessage);
+          this.addSystemMessage('Failed to create meeting due to network error');
+          observer.error(new Error(errorMessage));
+        }
+      });
+    });
   }
 
-  joinMeeting(meetingId: string, participantName: string): Promise<Meeting> {
-    return new Promise((resolve, reject) => {
-      const meeting = this.getMeetingById(meetingId);
-      if (meeting) {
-        this.currentMeetingSubject.next(meeting);
-        this.addSystemMessage(`${participantName} joined the meeting`);
-        resolve(meeting);
-      } else {
-        reject(new Error('Meeting not found'));
-      }
+  joinMeeting(roomCode: string, participantName: string, isGuest: boolean = false): Observable<JoinMeetingData | null> {
+    const joinRequest: JoinMeetingRequest = isGuest 
+      ? { guestName: participantName }
+      : { userName: participantName };
+
+    return new Observable<JoinMeetingData | null>(observer => {
+      this.apiService.joinMeeting(roomCode, joinRequest).subscribe({
+        next: (response) => {
+          if (ApiResponseHandler.isSuccess(response)) {
+            const joinData = ApiResponseHandler.extractData(response);
+            if (joinData) {
+              this.currentJoinDataSubject.next(joinData);
+              
+              // Create legacy Meeting object for backward compatibility
+              const legacyMeeting: Meeting = {
+                id: roomCode,
+                name: `Meeting ${joinData.meetingId}`,
+                hostId: joinData.userId?.toString() || '',
+                sessionId: joinData.sessionId || this.generateSessionId(),
+                token: joinData.token || this.generateToken(),
+                apiKey: this.getApiKey(),
+                createdAt: new Date(joinData.joinedAt),
+                isRecording: false
+              };
+              
+              this.currentMeetingSubject.next(legacyMeeting);
+              this.addSystemMessage(`${participantName} joined the meeting`);
+              
+              observer.next(joinData);
+              observer.complete();
+            } else {
+              const errorMessage = 'Failed to join meeting: Invalid response data';
+              console.error(errorMessage);
+              this.toastService.error('Join Failed', errorMessage);
+              this.addSystemMessage(errorMessage);
+              observer.error(new Error(errorMessage));
+            }
+          } else {
+            const errorMessage = ApiResponseHandler.getErrorMessage(response);
+            console.error('Failed to join meeting:', errorMessage);
+            this.toastService.error('Join Failed', errorMessage);
+            this.addSystemMessage(`Failed to join meeting: ${errorMessage}`);
+            observer.error(new Error(errorMessage));
+          }
+        },
+        error: (error) => {
+          console.error('API error joining meeting:', error);
+          const errorMessage = this.getErrorMessage(error);
+          this.toastService.error('Connection Failed', errorMessage);
+          this.addSystemMessage('Failed to join meeting due to network error');
+          observer.error(new Error(errorMessage));
+        }
+      });
     });
   }
 
@@ -80,7 +185,29 @@ export class MeetingService {
   }
 
   private getApiKey(): string {
-    return '47862271';
+    return '29c22761-ff53-4827-98b5-6906c3644d9f';
+  }
+
+  private getErrorMessage(error: any): string {
+    if (error?.error?.message) {
+      return error.error.message;
+    }
+    if (error?.message) {
+      return error.message;
+    }
+    if (error?.status === 0) {
+      return 'Unable to connect to server. Please check your internet connection.';
+    }
+    if (error?.status === 404) {
+      return 'Meeting not found. Please check the meeting ID.';
+    }
+    if (error?.status === 403) {
+      return 'Access denied. You may not have permission to join this meeting.';
+    }
+    if (error?.status >= 500) {
+      return 'Server error. Please try again later.';
+    }
+    return 'An unexpected error occurred. Please try again.';
   }
 
   addChatMessage(participantId: string, participantName: string, message: string): void {
@@ -150,6 +277,10 @@ export class MeetingService {
 
   getCurrentMeeting(): Meeting | null {
     return this.currentMeetingSubject.value;
+  }
+
+  getCurrentJoinData(): JoinMeetingData | null {
+    return this.currentJoinDataSubject.value;
   }
 
   generateMeetingLink(meetingId: string): string {

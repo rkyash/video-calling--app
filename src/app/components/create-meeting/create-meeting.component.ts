@@ -3,11 +3,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { MeetingService } from '../../services/meeting.service';
+import { ToastService } from '../../services/toast.service';
+import { ToastComponent } from '../toast/toast.component';
+import { MeetingData } from '../../models/meeting.model';
 
 @Component({
   selector: 'app-create-meeting',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, ToastComponent],
   template: `
     <div class="create-meeting-container">
       <header class="header">
@@ -178,12 +181,12 @@ import { MeetingService } from '../../services/meeting.service';
 
                 <div class="meeting-info">
                   <div class="info-item">
-                    <strong>Meeting ID:</strong>
-                    <span class="meeting-id">{{ createdMeeting.id }}</span>
+                    <strong>Meeting Code:</strong>
+                    <span class="meeting-id">{{ createdMeeting.roomCode }}</span>
                     <button 
                       class="btn-copy"
-                      (click)="copyToClipboard(createdMeeting.id)"
-                      title="Copy Meeting ID"
+                      (click)="copyToClipboard(createdMeeting.roomCode)"
+                      title="Copy Meeting Code"
                     >
                       <i class="fas fa-copy"></i>
                     </button>
@@ -248,6 +251,8 @@ import { MeetingService } from '../../services/meeting.service';
           </div>
         </div>
       </main>
+      
+      <app-toast></app-toast>
     </div>
   `,
   styles: [`
@@ -594,7 +599,7 @@ export class CreateMeetingComponent {
   meetingName: string = '';
   meetingDescription: string = '';
   isCreating: boolean = false;
-  createdMeeting: any = null;
+  createdMeeting: MeetingData | null = null;
   meetingLink: string = '';
 
   settings = {
@@ -607,43 +612,89 @@ export class CreateMeetingComponent {
 
   constructor(
     private meetingService: MeetingService,
+    private toastService: ToastService,
     private router: Router
   ) {}
 
   async createMeeting(): Promise<void> {
     if (!this.hostName.trim() || !this.meetingName.trim()) {
+      this.toastService.warning('Validation Error', 'Please fill in all required fields');
+      return;
+    }
+
+    // Prevent multiple calls while request is in progress
+    if (this.isCreating) {
       return;
     }
 
     this.isCreating = true;
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      this.createdMeeting = this.meetingService.createMeeting(
+      // Call the API service with proper scheduling
+      const scheduledAt = new Date().toISOString();
+      
+      this.meetingService.createMeeting(
         this.hostName.trim(),
-        this.meetingName.trim()
-      );
-
-      this.meetingLink = this.meetingService.generateMeetingLink(this.createdMeeting.id);
+        this.meetingName.trim(),
+        scheduledAt
+      ).subscribe({
+        next: (meetingData) => {
+          if (meetingData) {
+            this.createdMeeting = meetingData;
+            this.meetingLink = this.meetingService.generateMeetingLink(meetingData.roomCode);
+            
+            this.toastService.success(
+              'Meeting Created!', 
+              `"${meetingData.title}" is ready for participants`
+            );
+            
+            // Scroll to the success section
+            setTimeout(() => {
+              const successElement = document.querySelector('.meeting-created');
+              if (successElement) {
+                successElement.scrollIntoView({ behavior: 'smooth' });
+              }
+            }, 100);
+          } else {
+            this.toastService.error(
+              'Creation Failed', 
+              'Unable to create meeting. Please try again.'
+            );
+          }
+        },
+        error: (error) => {
+          console.error('Failed to create meeting:', error);
+          this.toastService.error(
+            'Network Error', 
+            'Failed to connect to the server. Please check your connection and try again.'
+          );
+        },
+        complete: () => {
+          this.isCreating = false;
+        }
+      });
     } catch (error) {
-      console.error('Failed to create meeting:', error);
-    } finally {
+      console.error('Unexpected error:', error);
+      this.toastService.error(
+        'Unexpected Error', 
+        'Something went wrong. Please try again.'
+      );
       this.isCreating = false;
     }
   }
 
   copyToClipboard(text: string): void {
     navigator.clipboard.writeText(text).then(() => {
-      console.log('Copied to clipboard');
+      this.toastService.showCopySuccess();
     }).catch(err => {
       console.error('Failed to copy to clipboard:', err);
+      this.toastService.error('Copy Failed', 'Unable to copy to clipboard');
     });
   }
 
   joinMeeting(): void {
     if (this.createdMeeting) {
-      this.router.navigate(['/meeting', this.createdMeeting.id], {
+      this.router.navigate(['/meeting', this.createdMeeting.roomCode], {
         queryParams: { name: this.hostName, host: true }
       });
     }

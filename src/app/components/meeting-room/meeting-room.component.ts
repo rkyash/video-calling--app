@@ -6,7 +6,8 @@ import { Subscription } from 'rxjs';
 import { OpenTokService } from '../../services/opentok.service';
 import { MeetingService } from '../../services/meeting.service';
 import { ScreenshotService } from '../../services/screenshot.service';
-import { Meeting, Participant, ChatMessage } from '../../models/meeting.model';
+import { ToastService } from '../../services/toast.service';
+import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models/meeting.model';
 
 @Component({
   selector: 'app-meeting-room',
@@ -1074,7 +1075,8 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     private router: Router,
     private openTokService: OpenTokService,
     private meetingService: MeetingService,
-    private screenshotService: ScreenshotService
+    private screenshotService: ScreenshotService,
+    private toastService: ToastService
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -1096,20 +1098,54 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     try {
       const meeting = this.meetingService.getCurrentMeeting();
       if (!meeting) {
-        const newMeeting = await this.meetingService.joinMeeting(this.meetingId, participantName);
-        this.currentMeeting = newMeeting;
+        // Use Observable pattern for join meeting
+        this.meetingService.joinMeeting(this.meetingId, participantName, !isHost).subscribe({
+          next: async (joinData) => {
+            if (joinData) {
+              // Get the legacy meeting object for OpenTok initialization
+              this.currentMeeting = this.meetingService.getCurrentMeeting();
+              
+              if (this.currentMeeting) {
+                await this.openTokService.initializeSession(
+                  this.currentMeeting.apiKey,
+                  this.currentMeeting.sessionId,
+                  this.currentMeeting.token,
+                  participantName
+                );
+                this.isConnecting = false;
+                this.toastService.success('Meeting Joined', 'Successfully joined the meeting');
+              } else {
+                const errorMessage = 'Meeting not found after joining';
+                console.error(errorMessage);
+                this.toastService.error('Join Failed', errorMessage);
+                this.connectionError = errorMessage;
+                this.isConnecting = false;
+              }
+            } else {
+              const errorMessage = 'Failed to join meeting';
+              console.error(errorMessage);
+              this.toastService.error('Join Failed', errorMessage);
+              this.connectionError = errorMessage;
+              this.isConnecting = false;
+            }
+          },
+          error: (error) => {
+            console.error('Failed to join meeting:', error);
+            // Error message and toast are already handled by the service
+            this.connectionError = error.message || 'Failed to join the meeting. Please check your connection and try again.';
+            this.isConnecting = false;
+          }
+        });
       } else {
         this.currentMeeting = meeting;
+        await this.openTokService.initializeSession(
+          this.currentMeeting.apiKey,
+          this.currentMeeting.sessionId,
+          this.currentMeeting.token,
+          participantName
+        );
+        this.isConnecting = false;
       }
-
-      await this.openTokService.initializeSession(
-        this.currentMeeting.apiKey,
-        this.currentMeeting.sessionId,
-        this.currentMeeting.token,
-        participantName
-      );
-
-      this.isConnecting = false;
     } catch (error) {
       console.error('Failed to initialize meeting:', error);
       this.connectionError = 'Failed to connect to the meeting. Please check your connection and try again.';
@@ -1303,7 +1339,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     }
   }
 
-  trackByMessageId(index: number, message: ChatMessage): string {
+  trackByMessageId(_index: number, message: ChatMessage): string {
     return message.id;
   }
 }
