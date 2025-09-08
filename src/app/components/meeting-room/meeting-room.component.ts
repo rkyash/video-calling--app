@@ -231,110 +231,173 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
 
         <!-- Center Control Groups -->
         <div class="controls-center">
-          <div class="control-group">
-          <!-- Audio Controls -->
-          <button 
-            class="control-button"
-            [class.muted]="currentUser?.isAudioMuted"
-            (click)="toggleAudio()"
-            title="Toggle Microphone"
-          >
-            <i [class]="currentUser?.isAudioMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone'"></i>
-          </button>
+          <!-- Primary Controls (Always Visible) -->
+          <div class="primary-controls">
+            <!-- Audio Controls -->
+            <button 
+              class="control-button"
+              [class.muted]="currentUser?.isAudioMuted"
+              (click)="toggleAudio()"
+              title="Toggle Microphone"
+            >
+              <i [class]="currentUser?.isAudioMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone'"></i>
+            </button>
 
-          <!-- Video Controls -->
-          <button 
-            class="control-button"
-            [class.muted]="currentUser?.isVideoMuted"
-            (click)="toggleVideo()"
-            title="Toggle Camera"
-          >
-            <i [class]="currentUser?.isVideoMuted ? 'fas fa-video-slash' : 'fas fa-video'"></i>
-          </button>
+            <!-- Video Controls -->
+            <button 
+              class="control-button"
+              [class.muted]="currentUser?.isVideoMuted"
+              (click)="toggleVideo()"
+              title="Toggle Camera"
+            >
+              <i [class]="currentUser?.isVideoMuted ? 'fas fa-video-slash' : 'fas fa-video'"></i>
+            </button>
 
-          <!-- Screen Share -->
-          <button 
-            class="control-button"
-            [class.active]="currentUser?.isScreenSharing"
-            (click)="toggleScreenShare()"
-            title="Share Screen"
-          >
-            <i class="fas fa-desktop"></i>
-          </button>
+            <!-- Screen Share -->
+            <button 
+              class="control-button"
+              [class.active]="currentUser?.isScreenSharing"
+              (click)="toggleScreenShare()"
+              title="Share Screen"
+            >
+              <i class="fas fa-desktop"></i>
+            </button>
 
-          <!-- Screenshot -->
-          <button 
-            class="control-button"
-            (click)="takeScreenshot()"
-            title="Take Screenshot"
-          >
-            <i class="fas fa-camera"></i>
-          </button>
-        </div>
+            <!-- Chat -->
+            <button 
+              class="control-button"
+              [class.active]="isChatOpen"
+              (click)="toggleChat()"
+              title="Toggle Chat"
+            >
+              <i class="fas fa-comments"></i>
+              <span class="notification-badge" *ngIf="unreadMessages > 0">{{ unreadMessages }}</span>
+            </button>
 
-        <div class="control-group">
-          <!-- Raise Hand -->
-          <button 
-            class="control-button"
-            [class.active]="currentUser?.hasRaisedHand"
-            (click)="toggleRaiseHand()"
-            title="Raise Hand"
-          >
-            <i class="fas fa-hand-paper"></i>
-          </button>
+            <!-- End Meeting -->
+            <button 
+              class="control-button end-call"
+              (click)="leaveMeeting()"
+              title="Leave Meeting"
+            >
+              <i class="fas fa-phone-slash"></i>
+            </button>
+          </div>
 
-          <!-- Chat -->
-          <button 
-            class="control-button"
-            [class.active]="isChatOpen"
-            (click)="toggleChat()"
-            title="Toggle Chat"
-          >
-            <i class="fas fa-comments"></i>
-            <span class="notification-badge" *ngIf="unreadMessages > 0">{{ unreadMessages }}</span>
-          </button>
+          <!-- Secondary Controls (Hidden on Mobile, Shown in More Menu) -->
+          <div class="secondary-controls">
+            <!-- Screenshot -->
+            <button 
+              class="control-button"
+              (click)="takeScreenshot()"
+              title="Take Screenshot"
+            >
+              <i class="fas fa-camera"></i>
+            </button>
 
-          <!-- Participants -->
-          <button 
-            class="control-button"
-            (click)="toggleParticipants()"
-            title="Participants"
-          >
-            <i class="fas fa-users"></i>
-            <span class="count-badge">{{ participants.length }}</span>
-          </button>
+            <!-- Raise Hand -->
+            <button 
+              class="control-button"
+              [class.active]="currentUser?.hasRaisedHand"
+              (click)="toggleRaiseHand()"
+              title="Raise Hand"
+            >
+              <i class="fas fa-hand-paper"></i>
+            </button>
 
-          <!-- Recording -->
-          <button 
-            class="control-button"
-            [class.active]="isRecording"
-            (click)="toggleRecording()"
-            title="Toggle Recording"
-            *ngIf="currentUser?.isHost"
-          >
-            <i class="fas fa-record-vinyl"></i>
-          </button>
-        </div>
+            <!-- Participants -->
+            <button 
+              class="control-button"
+              (click)="toggleParticipants()"
+              title="Participants"
+            >
+              <i class="fas fa-users"></i>
+              <span class="count-badge">{{ participants.length }}</span>
+            </button>
 
-        <div class="control-group">
-          <!-- Settings -->
-          <button 
-            class="control-button"
-            (click)="openSettings()"
-            title="Settings"
-          >
-            <i class="fas fa-cog"></i>
-          </button>
+            <!-- Recording -->
+            <button 
+              class="control-button"
+              [class.active]="isRecording"
+              (click)="toggleRecording()"
+              title="Toggle Recording"
+              *ngIf="currentUser?.isHost"
+            >
+              <i class="fas fa-record-vinyl"></i>
+            </button>
 
-          <!-- End Meeting -->
-          <button 
-            class="control-button end-call"
-            (click)="leaveMeeting()"
-            title="Leave Meeting"
-          >
-            <i class="fas fa-phone-slash"></i>
-          </button>
-        </div>
+            <!-- Settings -->
+            <button 
+              class="control-button"
+              (click)="openSettings()"
+              title="Settings"
+            >
+              <i class="fas fa-cog"></i>
+            </button>
+          </div>
+
+          <!-- More Menu Button (Mobile Only) -->
+          <div class="more-menu-container">
+            <button 
+              class="control-button more-button"
+              (click)="toggleMoreMenu()"
+              [class.active]="isMoreMenuOpen"
+              title="More Options"
+            >
+              <i class="fas fa-ellipsis-h"></i>
+            </button>
+            
+            <!-- More Menu Dropdown -->
+            <div class="more-menu" [class.open]="isMoreMenuOpen">
+              <button 
+                class="more-menu-item"
+                (click)="takeScreenshot(); toggleMoreMenu()"
+                title="Take Screenshot"
+              >
+                <i class="fas fa-camera"></i>
+                <span>Screenshot</span>
+              </button>
+
+              <button 
+                class="more-menu-item"
+                (click)="toggleRaiseHand(); toggleMoreMenu()"
+                [class.active]="currentUser?.hasRaisedHand"
+                title="Raise Hand"
+              >
+                <i class="fas fa-hand-paper"></i>
+                <span>Raise Hand</span>
+              </button>
+
+              <button 
+                class="more-menu-item"
+                (click)="toggleParticipants(); toggleMoreMenu()"
+                title="Participants"
+              >
+                <i class="fas fa-users"></i>
+                <span>Participants ({{ participants.length }})</span>
+              </button>
+
+              <button 
+                class="more-menu-item"
+                (click)="toggleRecording(); toggleMoreMenu()"
+                [class.active]="isRecording"
+                title="Toggle Recording"
+                *ngIf="currentUser?.isHost"
+              >
+                <i class="fas fa-record-vinyl"></i>
+                <span>{{ isRecording ? 'Stop' : 'Start' }} Recording</span>
+              </button>
+
+              <button 
+                class="more-menu-item"
+                (click)="openSettings(); toggleMoreMenu()"
+                title="Settings"
+              >
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+              </button>
+            </div>
+          </div>
         </div> <!-- End controls-center -->
         
         <!-- Right Spacer (to balance left recording indicator) -->
@@ -928,17 +991,92 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
 
       .controls-center {
         display: flex;
-        gap: 2rem;
+        align-items: center;
+        gap: 1rem;
         margin: 0 auto; /* Center the controls */
+      }
+
+      .primary-controls {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .secondary-controls {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .more-menu-container {
+        position: relative;
+        display: none; /* Hidden on desktop */
+      }
+
+      .more-menu {
+        position: absolute;
+        bottom: 100%;
+        right: 0;
+        margin-bottom: 0.5rem;
+        background: var(--dark-surface);
+        border: 1px solid var(--dark-card);
+        border-radius: 0.75rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        min-width: 200px;
+        opacity: 0;
+        transform: translateY(10px);
+        pointer-events: none;
+        transition: all 0.3s ease;
+        z-index: 1000;
+
+        &.open {
+          opacity: 1;
+          transform: translateY(0);
+          pointer-events: all;
+        }
+
+        .more-menu-item {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.75rem 1rem;
+          background: none;
+          border: none;
+          color: var(--text-light);
+          cursor: pointer;
+          text-align: left;
+          transition: all 0.2s;
+          font-size: 0.875rem;
+
+          &:first-child {
+            border-radius: 0.75rem 0.75rem 0 0;
+          }
+
+          &:last-child {
+            border-radius: 0 0 0.75rem 0.75rem;
+          }
+
+          &:hover {
+            background: var(--dark-card);
+          }
+
+          &.active {
+            background: var(--primary-color);
+            color: white;
+          }
+
+          i {
+            width: 16px;
+            text-align: center;
+          }
+
+          span {
+            flex: 1;
+          }
+        }
       }
 
       .controls-spacer {
         width: 200px; /* Same width as recording-info area to balance */
-      }
-
-      .control-group {
-        display: flex;
-        gap: 0.5rem;
       }
 
       .control-button {
@@ -1299,8 +1437,20 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
         }
 
         .controls-center {
-          gap: 1rem;
+          gap: 0.5rem;
           margin: 0; /* Remove auto margin on mobile */
+        }
+
+        .primary-controls {
+          gap: 0.25rem;
+        }
+
+        .secondary-controls {
+          display: none; /* Hide secondary controls on mobile */
+        }
+
+        .more-menu-container {
+          display: block; /* Show more menu on mobile */
         }
 
         .controls-spacer {
@@ -1333,6 +1483,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   isSettingsOpen: boolean = false;
   isScreenShareActive: boolean = false;
   screenShareParticipant: Participant | null = null;
+  isMoreMenuOpen: boolean = false;
   
   newMessage: string = '';
   unreadMessages: number = 0;
@@ -1362,6 +1513,9 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     // Set up the meeting service reference for chat functionality
     this.openTokService.setMeetingService(this.meetingService);
 
+    // Set up click outside listener for more menu
+    document.addEventListener('click', this.onDocumentClick.bind(this));
+
     await this.initializeMeeting(participantName, isHost);
     this.subscribeToServices();
   }
@@ -1370,6 +1524,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     this.subscriptions.forEach(sub => sub.unsubscribe());
     this.stopRecordingTimer();
     this.openTokService.disconnect();
+    document.removeEventListener('click', this.onDocumentClick.bind(this));
   }
 
   private async initializeMeeting(participantName: string, isHost: boolean): Promise<void> {
@@ -1631,6 +1786,19 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     console.log('Settings changed:', settings);
     // Apply the new settings to the OpenTok session
     this.toastService.success('Settings Applied', 'Your settings have been updated');
+  }
+
+  toggleMoreMenu(): void {
+    this.isMoreMenuOpen = !this.isMoreMenuOpen;
+  }
+
+  private onDocumentClick(event: Event): void {
+    const target = event.target as HTMLElement;
+    const moreMenuContainer = target.closest('.more-menu-container');
+    
+    if (!moreMenuContainer && this.isMoreMenuOpen) {
+      this.isMoreMenuOpen = false;
+    }
   }
 
   async retryConnection(): Promise<void> {
