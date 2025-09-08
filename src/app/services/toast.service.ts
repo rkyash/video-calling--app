@@ -53,7 +53,7 @@ export class ToastService {
   }
 
   success(title: string, message?: string, duration?: number): string {
-    return this.addToast({ type: 'success', title, message, duration });
+    return this.addToast({ type: 'success', title, message, duration: duration || 5000 });
   }
 
   error(title: string, message?: string, duration?: number): string {
