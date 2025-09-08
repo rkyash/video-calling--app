@@ -724,7 +724,7 @@ import { AuthService } from 'src/app/services/auth.service';
 export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('localVideo') localVideoRef!: ElementRef<HTMLVideoElement>;
   meetingId: string = '';
-  originSiteUrl: string = '';
+  originSiteUrl!: string;
   private messageCount = 0;
   private maxMessages = 1000;
 
@@ -759,14 +759,19 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async ngOnInit(): Promise<void> {
     this.meetingId = this.route.snapshot.paramMap.get('id') || '';
-    this.originSiteUrl = this.configService.getConfig()?.originSiteUrl || 'http://localhost:4200';
+    await this.configService.loadConfig();
+    this.originSiteUrl = this.configService.getConfig()?.originSiteUrl ?? '';
 
-     // Set up message listener immediately
+    // Set up message listener immediately
     window.addEventListener('message', this.receiveMessage.bind(this));
 
     // Send ready message both on init and after window load
     this.sendReadyMessage();
     window.onload = () => this.sendReadyMessage();
+
+    var currentUser = this.authService.currentUser();
+
+    this.participantName = currentUser?.fullName || '';
   }
 
   async ngAfterViewInit(): Promise<void> {
@@ -1111,13 +1116,23 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
     try {
       await new Promise(resolve => setTimeout(resolve, 1500));
 
+      // Create join settings based on current preferences
+      const joinSettings = {
+        audioEnabled: this.isAudioEnabled,
+        videoEnabled: this.isVideoEnabled,
+        autoMuteAudio: false,
+        autoMuteVideo: false
+      };
+
       await this.meetingService.joinMeeting(targetMeetingId.trim(), this.participantName.trim());
 
       this.router.navigate(['/meeting', targetMeetingId], {
         queryParams: {
           name: this.participantName,
           audio: this.isAudioEnabled,
-          video: this.isVideoEnabled
+          video: this.isVideoEnabled,
+          joinAudio: this.isAudioEnabled,
+          joinVideo: this.isVideoEnabled
         }
       });
     } catch (error) {
@@ -1176,7 +1191,7 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
     }
-     window.removeEventListener(
+    window.removeEventListener(
       'message',
       this.receiveMessage.bind(this)
     );

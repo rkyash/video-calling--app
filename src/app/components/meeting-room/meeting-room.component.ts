@@ -1473,7 +1473,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   participants: Participant[] = [];
   remoteParticipants: Participant[] = [];
   chatMessages: ChatMessage[] = [];
-  
+
   isConnecting: boolean = true;
   connectionError: string = '';
   isRecording: boolean = false;
@@ -1484,17 +1484,18 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   isScreenShareActive: boolean = false;
   screenShareParticipant: Participant | null = null;
   isMoreMenuOpen: boolean = false;
-  
+
   newMessage: string = '';
   unreadMessages: number = 0;
-  
+
   // Recording timer
   recordingStartTime: Date | null = null;
   recordingDuration: string = '00:00';
   private recordingTimer: any;
-  
+
   private subscriptions: Subscription[] = [];
 
+  isHost: boolean = false;
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -1502,13 +1503,21 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     private meetingService: MeetingService,
     private screenshotService: ScreenshotService,
     private toastService: ToastService
-  ) {}
+  ) { }
 
   async ngOnInit(): Promise<void> {
     this.meetingId = this.route.snapshot.paramMap.get('id') || '';
     const queryParams = this.route.snapshot.queryParams;
     const participantName = queryParams['name'] || 'Anonymous';
-    const isHost = queryParams['host'] === 'true';
+    // const isHost = queryParams['host'] === 'true';
+
+    const meeting = this.meetingService.getCurrentMeeting();
+
+    this.isHost = meeting ? meeting.isHost:false;
+
+    // Get join settings from query parameters
+    const joinAudioEnabled = queryParams['joinAudio'] === 'true';
+    const joinVideoEnabled = queryParams['joinVideo'] === 'true';
 
     // Set up the meeting service reference for chat functionality
     this.openTokService.setMeetingService(this.meetingService);
@@ -1516,7 +1525,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     // Set up click outside listener for more menu
     document.addEventListener('click', this.onDocumentClick.bind(this));
 
-    await this.initializeMeeting(participantName, isHost);
+    await this.initializeMeeting(participantName, joinAudioEnabled, joinVideoEnabled);
     this.subscribeToServices();
   }
 
@@ -1527,23 +1536,31 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     document.removeEventListener('click', this.onDocumentClick.bind(this));
   }
 
-  private async initializeMeeting(participantName: string, isHost: boolean): Promise<void> {
+  private async initializeMeeting(participantName: string, joinAudioEnabled?: boolean, joinVideoEnabled?: boolean): Promise<void> {
     try {
       const meeting = this.meetingService.getCurrentMeeting();
       if (!meeting) {
         // Use Observable pattern for join meeting
-        this.meetingService.joinMeeting(this.meetingId, participantName, !isHost).subscribe({
+        this.meetingService.joinMeeting(this.meetingId, participantName).subscribe({
           next: async (joinData) => {
             if (joinData) {
               // Get the legacy meeting object for OpenTok initialization
               this.currentMeeting = this.meetingService.getCurrentMeeting();
-              
+              this.isHost = this.currentMeeting ? this.currentMeeting.isHost:false;
               if (this.currentMeeting) {
+                // Create join settings object
+                const joinSettings = {
+                  audioEnabled: joinAudioEnabled !== false,
+                  videoEnabled: joinVideoEnabled !== false
+                };
+
                 await this.openTokService.initializeSession(
                   this.currentMeeting.apiKey,
                   this.currentMeeting.sessionId,
                   this.currentMeeting.token,
-                  participantName
+                  participantName,
+                  this.isHost,
+                  joinSettings
                 );
                 this.isConnecting = false;
                 this.toastService.success('Meeting Joined', 'Successfully joined the meeting');
@@ -1571,11 +1588,21 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
         });
       } else {
         this.currentMeeting = meeting;
+
+        // Create join settings object
+        const joinSettings = {
+          audioEnabled: joinAudioEnabled !== false,
+          videoEnabled: joinVideoEnabled !== false
+        };
+
         await this.openTokService.initializeSession(
           this.currentMeeting.apiKey,
           this.currentMeeting.sessionId,
           this.currentMeeting.token,
-          participantName
+          participantName,
+          this.isHost,
+          joinSettings
+         
         );
         this.isConnecting = false;
       }
@@ -1592,7 +1619,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       this.participants = participants;
       this.currentUser = this.openTokService.getCurrentUser();
       this.remoteParticipants = participants.filter(p => p.id !== this.currentUser?.id);
-      
+
       // Check if anyone is screen sharing
       const screenSharer = participants.find(p => p.isScreenSharing);
       this.isScreenShareActive = !!screenSharer;
@@ -1610,7 +1637,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     // Subscribe to recording status
     const recordingSub = this.meetingService.isRecording$.subscribe(isRecording => {
       this.isRecording = isRecording;
-      
+
       if (isRecording) {
         this.startRecordingTimer();
       } else {
@@ -1668,7 +1695,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     } catch (error) {
       console.error('Failed to toggle screen sharing:', error);
       let errorMessage = 'Failed to toggle screen sharing';
-      
+
       if (error instanceof Error) {
         if (error.message.includes('container not found')) {
           errorMessage = 'Unable to start screen sharing. Please try again in a moment.';
@@ -1678,7 +1705,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
           errorMessage = error.message;
         }
       }
-      
+
       this.toastService.error('Screen Share Failed', errorMessage);
     }
   }
@@ -1732,14 +1759,14 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     if (this.newMessage.trim() && this.currentUser) {
       // Send the signal to other participants
       this.openTokService.sendChatMessage(this.newMessage.trim());
-      
+
       // Add the message locally for the sender (since we filter out our own signals)
       this.meetingService.addChatMessage(
         this.currentUser.id,
         this.currentUser.name,
         this.newMessage.trim()
       );
-      
+
       this.newMessage = '';
       setTimeout(() => this.scrollChatToBottom(), 100);
     }
@@ -1795,7 +1822,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   private onDocumentClick(event: Event): void {
     const target = event.target as HTMLElement;
     const moreMenuContainer = target.closest('.more-menu-container');
-    
+
     if (!moreMenuContainer && this.isMoreMenuOpen) {
       this.isMoreMenuOpen = false;
     }
@@ -1807,7 +1834,11 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     const queryParams = this.route.snapshot.queryParams;
     const participantName = queryParams['name'] || 'Anonymous';
     const isHost = queryParams['host'] === 'true';
-    await this.initializeMeeting(participantName, isHost);
+    // Get join settings from query parameters
+    const joinAudioEnabled = queryParams['joinAudio'] === 'true';
+    const joinVideoEnabled = queryParams['joinVideo'] === 'true';
+    // await this.initializeMeeting(participantName, isHost);
+    await this.initializeMeeting(participantName, joinAudioEnabled, joinVideoEnabled);
   }
 
   leaveMeeting(): void {
@@ -1833,7 +1864,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   private startRecordingTimer(): void {
     this.recordingStartTime = new Date();
     this.recordingDuration = '00:00';
-    
+
     // Update timer every second
     this.recordingTimer = setInterval(() => {
       if (this.recordingStartTime) {
@@ -1856,10 +1887,10 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     const totalSeconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-    
+
     const mm = minutes.toString().padStart(2, '0');
     const ss = seconds.toString().padStart(2, '0');
-    
+
     // Show hours if recording is over an hour
     if (minutes >= 60) {
       const hours = Math.floor(minutes / 60);
@@ -1868,7 +1899,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       const mmm = remainingMinutes.toString().padStart(2, '0');
       return `${hh}:${mmm}:${ss}`;
     }
-    
+
     return `${mm}:${ss}`;
   }
 }

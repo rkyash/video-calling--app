@@ -24,6 +24,7 @@ export class OpenTokService {
   private currentUser: Participant | null = null;
 
   private meetingService: any = null;
+  private joinSettings: { audioEnabled?: boolean, videoEnabled?: boolean } = {};
 
   constructor() {}
 
@@ -32,14 +33,17 @@ export class OpenTokService {
     this.meetingService = meetingService;
   }
 
-  initializeSession(apiKey: string, sessionId: string, token: string, userName: string): Promise<void> {
+  initializeSession(apiKey: string, sessionId: string, token: string, userName: string, isHost:boolean, joinSettings?: { audioEnabled?: boolean, videoEnabled?: boolean }): Promise<void> {
+    // Store join settings for use during stream publishing
+    this.joinSettings = joinSettings || { audioEnabled: true, videoEnabled: true };
+    
     return new Promise((resolve, reject) => {
       try {
         this.session = OT.initSession(apiKey, sessionId);
         
         this.session.on('sessionConnected', () => {
           this.connectionStatusSubject.next('connected');
-          this.publishStream(userName);
+          this.publishStream(userName,isHost);
           resolve();
         });
 
@@ -49,7 +53,7 @@ export class OpenTokService {
         });
 
         this.session.on('streamCreated', (event) => {
-          this.subscribeToStream(event.stream);
+          this.subscribeToStream(event.stream,isHost);
         });
 
         this.session.on('streamDestroyed', (event) => {
@@ -57,7 +61,7 @@ export class OpenTokService {
         });
 
         this.session.on('connectionCreated', (event) => {
-          this.addParticipant(event.connection);
+          this.addParticipant(event.connection,isHost);
         });
 
         this.session.on('connectionDestroyed', (event) => {
@@ -81,7 +85,7 @@ export class OpenTokService {
     });
   }
 
-  private publishStream(userName: string): void {
+  private publishStream(userName: string,isHost:boolean): void {
     const publisherContainer = document.getElementById('publisher');
     
     if (!publisherContainer) {
@@ -89,25 +93,33 @@ export class OpenTokService {
       return;
     }
     
+    // Use join settings to determine initial audio/video state
+    const publishAudio = this.joinSettings.audioEnabled !== false;
+    const publishVideo = this.joinSettings.videoEnabled !== false;
+    
     this.publisher = OT.initPublisher(publisherContainer, {
       name: userName,
       width: '100%',
       height: '100%',
       insertMode: 'append',
       showControls: false,
-      publishAudio: true,
-      publishVideo: true
+      publishAudio: publishAudio,
+      publishVideo: publishVideo
     });
 
     if (this.session && this.publisher) {
       this.session.publish(this.publisher);
       
+      // Set initial muted state based on join settings (opposite of enabled)
+      const initialAudioMuted = this.joinSettings.audioEnabled === false;
+      const initialVideoMuted = this.joinSettings.videoEnabled === false;
+      
       this.currentUser = {
         id: this.session.connection?.connectionId || 'local',
         name: userName,
-        isHost: true,
-        isAudioMuted: false,
-        isVideoMuted: false,
+        isHost: isHost,
+        isAudioMuted: initialAudioMuted,
+        isVideoMuted: initialVideoMuted,
         isScreenSharing: false,
         hasRaisedHand: false,
         connectionId: this.session.connection?.connectionId || 'local'
@@ -118,7 +130,7 @@ export class OpenTokService {
     }
   }
 
-  private subscribeToStream(stream: OT.Stream): void {
+  private subscribeToStream(stream: OT.Stream,isHost:boolean): void {
     const subscriberContainer = document.getElementById(`subscriber-${stream.connection.connectionId}`);
     
     if (!subscriberContainer) {
@@ -135,17 +147,18 @@ export class OpenTokService {
 
     if (subscriber) {
       this.subscribers.set(stream.connection.connectionId, subscriber);
-      this.addParticipant(stream.connection);
+      this.addParticipant(stream.connection,isHost);
     }
   }
 
-  private addParticipant(connection: OT.Connection): void {
+  private addParticipant(connection: OT.Connection,isHost:boolean): void {
+    console.log('Adding participant:', connection);
     const existingParticipant = this.participants.find(p => p.connectionId === connection.connectionId);
     if (!existingParticipant) {
       const participant: Participant = {
         id: connection.connectionId,
         name: connection.data ? JSON.parse(connection.data).name || 'Unknown' : 'Unknown',
-        isHost: false,
+        isHost: isHost,
         isAudioMuted: false,
         isVideoMuted: false,
         isScreenSharing: false,

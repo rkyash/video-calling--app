@@ -155,18 +155,6 @@ export class AuthService {
       this._currentUser.set(profileFromToken);
       this.updateAuthState();
     }
-
-    // Optionally load additional profile data from server
-    const apiUrl = this.configService.getFullApiUrl('auth/profile');
-    this.http.get<UserProfile>(apiUrl).pipe(
-      catchError(() => of(null)) // Don't fail if profile endpoint is not available
-    ).subscribe(profile => {
-      if (profile) {
-        this._currentUser.set(profile);
-        this.storeUserProfile(profile);
-        this.updateAuthState();
-      }
-    });
   }
 
   /**

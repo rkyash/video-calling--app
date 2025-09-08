@@ -47,6 +47,16 @@ export class ApiService {
     return this.http.post<JoinMeetingResponse>(url, joinData);
   }
 
+  startRecording(roomCode: string, joinData: JoinMeetingRequest = {}): Observable<JoinMeetingResponse> {
+    let url = `${this.apiUrl}/${roomCode}/recordings/start`;
+    return this.http.post<JoinMeetingResponse>(url, joinData);
+  }
+
+  disconnectParticipant(roomCode: string): Observable<ApiResponse> {
+    let url = `${this.apiUrl}/meetings/${roomCode}/disconnect/`;
+    return this.http.post<ApiResponse>(url,{});
+  }
+
   // private makeRequest<T>(
   //   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   //   endpoint: string,

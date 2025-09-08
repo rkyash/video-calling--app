@@ -6,7 +6,8 @@ import {
   CreateMeetingRequest, 
   MeetingData, 
   JoinMeetingRequest, 
-  JoinMeetingData 
+  JoinMeetingData, 
+  ParticipantRole
 } from '../models/meeting.model';
 import { ApiResponseHandler } from '../models/api-response.model';
 import { ApiService } from './api.service';
@@ -60,6 +61,7 @@ export class MeetingService {
               const legacyMeeting: Meeting = {
                 id: meetingData.roomCode.toString(),
                 name: meetingData.title,
+                isHost: true,
                 hostId: meetingData.createdById?.toString() || '',
                 sessionId: meetingData.sessionId,
                 token: this.generateToken(),
@@ -117,9 +119,10 @@ export class MeetingService {
                 id: roomCode,
                 name: `Meeting ${joinData.meetingId}`,
                 hostId: joinData.userId?.toString() || '',
+                isHost:joinData.role === ParticipantRole.Host, // Assuming role 0 is Host
                 sessionId: joinData.sessionId || this.generateSessionId(),
                 token: joinData.token || this.generateToken(),
-                apiKey: this.getApiKey(),
+                apiKey: joinData.apiKey || this.getApiKey(),
                 createdAt: new Date(joinData.joinedAt),
                 isRecording: false
               };
@@ -160,6 +163,7 @@ export class MeetingService {
       id: meetingId,
       name: 'Sample Meeting',
       hostId: uuidv4(),
+      isHost: false,
       sessionId: this.generateSessionId(),
       token: this.generateToken(),
       apiKey: this.getApiKey(),

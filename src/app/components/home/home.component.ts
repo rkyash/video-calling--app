@@ -378,19 +378,24 @@ export class HomeComponent implements OnInit, OnDestroy {
   meetingId: string = '';
   meetingCode: string = '';
   originSiteUrl: string = '';
+  token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiRHIgQ2hyaXN0b3BoZXIgIFN1ZGhha2FyIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiQXNzZXNzb3IiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9oYXNoIjoiMTEwOGVmMGItNjc3MC00NWIyLWE1MDctNDc0YTQzZDkwZTNhIiwiVXNlcklkIjoiMzEwIiwiR3VJZCI6IjViOTdmNDMyYzlkZjRiMjhiNTM1Y2ZhZDQyYWJhYWJlIiwicm9sZWlkIjoiNSIsInJvbGVuYW1lIjoiQXNzZXNzb3IiLCJmaXJzdG5hbWUiOiJEciBDaHJpc3RvcGhlciIsImxhc3RuYW1lIjoiU3VkaGFrYXIiLCJ1c3JfZW1haWwiOiJjaHJpcy5zdWRoYWthckBtYW5pcGFsLmVkdSIsIm1vYmlsZSI6Ijk0NDgyNTIzNDAiLCJjcmVhdGlvbmRhdGUiOiIiLCJpc2FjdGl2ZSI6InRydWUiLCJhc3JfaWQiOiIyMiIsImhvc3BfaXNhY3RpdmUiOiJmYWxzZSIsImhvc3BfY2F0Z192YWwiOiIwIiwiaG9zcF9lZHRuX25vIjoiMCIsImhvc3BfZWR0bm5vX2RyIjoiMCIsImhvc3BfZWR0bm5vX3NhdCI6IjAiLCJhc210Y2F0Z19lZHRubm8iOiIwIiwiaG9zcF9pc2VjaG8iOiJmYWxzZSIsImhvc3BfZWNob19zdXJnZXJ5cyI6IjAiLCJhbGxjdGRfcHJnbXMiOiIiLCJleHAiOjE3NTczNTc2OTMsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6KiIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6KiJ9.0nPbn95lhPfvTYbBTAkdwLEjorp5zbZZ-X_RTWEJmpU";
   private messageCount = 0;
   private maxMessages = 1000;
 
-  constructor(private router: Router, private authService: AuthService) { 
+  constructor(private router: Router, private authService: AuthService) {
 
   }
 
 
   ngOnDestroy(): void {
-    
+
   }
   ngOnInit(): void {
-   
+    const authPayload = { accessToken: this.token };
+    this.authService.setAuthToken(authPayload);    
+
+    this.authService.loadUserProfile();
+
   }
 
   joinMeeting(): void {
@@ -405,5 +410,5 @@ export class HomeComponent implements OnInit, OnDestroy {
     }
   }
 
-  
+
 }

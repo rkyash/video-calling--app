@@ -38,6 +38,14 @@ export interface JoinMeetingRequest {
   userName?: string;
   guestName?: string;
   guestEmail?: string;
+  joinSettings?: JoinSettings;
+}
+
+export interface JoinSettings {
+  audioEnabled: boolean;
+  videoEnabled: boolean;
+  autoMuteAudio?: boolean;
+  autoMuteVideo?: boolean;
 }
 
 export interface JoinMeetingData {
@@ -49,12 +57,13 @@ export interface JoinMeetingData {
   guestEmail: string | null;
   joinedAt: string;
   leftAt: string | null;
-  role: number;
+  role: ParticipantRole;
   isMuted: boolean;
   isVideoEnabled: boolean;
   isScreenSharing: boolean;
   sessionId: string | null;
   token: string | null;
+  apiKey: string | null;
 }
 
 export type JoinMeetingResponse = ApiResponse<JoinMeetingData>;
@@ -69,6 +78,7 @@ export interface Meeting {
   apiKey: string;
   createdAt: Date;
   isRecording?: boolean;
+  isHost: boolean;
 }
 
 export interface Participant {
@@ -105,4 +115,11 @@ export interface MeetingSettings {
   chatEnabled: boolean;
   recordingEnabled: boolean;
   participantLimit: number;
+}
+
+export enum ParticipantRole {
+  Host = 0,
+  Moderator = 1,
+  Participant = 2,
+  Guest = 3
 }
