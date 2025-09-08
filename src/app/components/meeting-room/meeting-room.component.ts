@@ -7,12 +7,13 @@ import { OpenTokService } from '../../services/opentok.service';
 import { MeetingService } from '../../services/meeting.service';
 import { ScreenshotService } from '../../services/screenshot.service';
 import { ToastService } from '../../services/toast.service';
+import { SettingsModalComponent } from '../settings-modal/settings-modal.component';
 import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models/meeting.model';
 
 @Component({
   selector: 'app-meeting-room',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SettingsModalComponent],
   template: `
     <div class="meeting-room" [class.fullscreen]="isFullscreen">
       <!-- Meeting Header -->
@@ -46,8 +47,75 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
       <!-- Main Meeting Content -->
       <div class="meeting-content">
         <!-- Video Grid -->
-        <div class="video-section" [class.chat-open]="isChatOpen">
-          <div class="video-grid" #videoGrid [ngClass]="getVideoGridClass()">
+        <div class="video-section" [class.chat-open]="isChatOpen" [class.screen-share-active]="isScreenShareActive">
+          <!-- Screen Share Layout (Google Meet Style) -->
+          <div *ngIf="isScreenShareActive" class="screen-share-layout">
+            <!-- Main Screen Share Area -->
+            <div class="screen-share-main">
+              <div class="screen-share-container">
+                <div id="screen-share-publisher" class="screen-share-element"></div>
+                <div class="screen-share-overlay">
+                  <span class="screen-share-label">
+                    <i class="fas fa-desktop"></i>
+                    {{ screenShareParticipant?.name || 'Unknown' }}'s Screen
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Participants Sidebar -->
+            <div class="participants-sidebar">
+              <!-- Local Video -->
+              <div class="video-participant local-video mini">
+                <div class="video-container">
+                  <div id="publisher" class="video-element"></div>
+                  <div class="participant-overlay">
+                    <span class="participant-name">You</span>
+                    <div class="participant-status">
+                      <span *ngIf="currentUser?.isAudioMuted" class="status-icon muted">
+                        <i class="fas fa-microphone-slash"></i>
+                      </span>
+                      <span *ngIf="currentUser?.isVideoMuted" class="status-icon muted">
+                        <i class="fas fa-video-slash"></i>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Remote Videos -->
+              <div 
+                *ngFor="let participant of remoteParticipants" 
+                class="video-participant mini"
+                [attr.data-connection-id]="participant.connectionId"
+                [class.screen-sharer]="participant.isScreenSharing"
+              >
+                <div class="video-container">
+                  <div [id]="'subscriber-' + participant.connectionId" class="video-element"></div>
+                  <div class="participant-overlay">
+                    <span class="participant-name">{{ participant.name }}</span>
+                    <div class="participant-status">
+                      <span *ngIf="participant.isHost" class="status-icon host">
+                        <i class="fas fa-crown"></i>
+                      </span>
+                      <span *ngIf="participant.isAudioMuted" class="status-icon muted">
+                        <i class="fas fa-microphone-slash"></i>
+                      </span>
+                      <span *ngIf="participant.isVideoMuted" class="status-icon muted">
+                        <i class="fas fa-video-slash"></i>
+                      </span>
+                      <span *ngIf="participant.hasRaisedHand" class="status-icon raised-hand">
+                        <i class="fas fa-hand-paper"></i>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Normal Grid Layout (when no screen sharing) -->
+          <div *ngIf="!isScreenShareActive" class="video-grid" #videoGrid [ngClass]="getVideoGridClass()">
             <!-- Local Video -->
             <div class="video-participant local-video">
               <div class="video-container">
@@ -60,9 +128,6 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
                     </span>
                     <span *ngIf="currentUser?.isVideoMuted" class="status-icon muted">
                       <i class="fas fa-video-slash"></i>
-                    </span>
-                    <span *ngIf="currentUser?.isScreenSharing" class="status-icon sharing">
-                      <i class="fas fa-desktop"></i>
                     </span>
                     <span *ngIf="currentUser?.hasRaisedHand" class="status-icon raised-hand">
                       <i class="fas fa-hand-paper"></i>
@@ -91,9 +156,6 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
                     </span>
                     <span *ngIf="participant.isVideoMuted" class="status-icon muted">
                       <i class="fas fa-video-slash"></i>
-                    </span>
-                    <span *ngIf="participant.isScreenSharing" class="status-icon sharing">
-                      <i class="fas fa-desktop"></i>
                     </span>
                     <span *ngIf="participant.hasRaisedHand" class="status-icon raised-hand">
                       <i class="fas fa-hand-paper"></i>
@@ -337,6 +399,13 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
         </button>
       </div>
     </div>
+
+    <!-- Settings Modal -->
+    <app-settings-modal
+      [isOpen]="isSettingsOpen"
+      (close)="closeSettings()"
+      (settingsChange)="onSettingsChange($event)"
+    ></app-settings-modal>
   `,
   styles: [`
     .meeting-room {
@@ -420,6 +489,10 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
       &.chat-open {
         margin-right: 350px;
       }
+
+      &.screen-share-active {
+        padding: 0.5rem;
+      }
     }
 
     .video-grid {
@@ -451,6 +524,83 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
 
       &.grid-many {
         grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      }
+    }
+
+    // Screen Share Layout Styles
+    .screen-share-layout {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      gap: 0.5rem;
+    }
+
+    .screen-share-main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--dark-surface);
+      border-radius: 1rem;
+    }
+
+    .screen-share-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 400px;
+    }
+
+    .screen-share-element {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+      border-radius: 0.75rem;
+    }
+
+    .screen-share-overlay {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      backdrop-filter: blur(4px);
+
+      .screen-share-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        i {
+          color: var(--primary-color);
+        }
+      }
+    }
+
+    .participants-sidebar {
+      width: 300px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-height: 100%;
+      overflow-y: auto;
+      background: var(--dark-surface);
+      border-radius: 0.75rem;
+      padding: 0.5rem;
+
+      .video-participant.mini {
+        min-height: 120px;
+        flex-shrink: 0;
+
+        &.screen-sharer {
+          border: 2px solid var(--success-color);
+        }
       }
     }
 
@@ -1032,6 +1182,30 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
         }
       }
 
+      // Screen Share Mobile Layout
+      .screen-share-layout {
+        flex-direction: column;
+      }
+
+      .screen-share-main {
+        flex: 1;
+        min-height: 250px;
+      }
+
+      .participants-sidebar {
+        width: 100%;
+        max-height: 200px;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+
+        .video-participant.mini {
+          min-width: 120px;
+          min-height: 80px;
+          flex-shrink: 0;
+        }
+      }
+
       .chat-sidebar,
       .participants-panel {
         width: 100%;
@@ -1064,6 +1238,9 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   isChatOpen: boolean = false;
   isParticipantsOpen: boolean = false;
   isFullscreen: boolean = false;
+  isSettingsOpen: boolean = false;
+  isScreenShareActive: boolean = false;
+  screenShareParticipant: Participant | null = null;
   
   newMessage: string = '';
   unreadMessages: number = 0;
@@ -1084,6 +1261,9 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     const queryParams = this.route.snapshot.queryParams;
     const participantName = queryParams['name'] || 'Anonymous';
     const isHost = queryParams['host'] === 'true';
+
+    // Set up the meeting service reference for chat functionality
+    this.openTokService.setMeetingService(this.meetingService);
 
     await this.initializeMeeting(participantName, isHost);
     this.subscribeToServices();
@@ -1159,6 +1339,11 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       this.participants = participants;
       this.currentUser = this.openTokService.getCurrentUser();
       this.remoteParticipants = participants.filter(p => p.id !== this.currentUser?.id);
+      
+      // Check if anyone is screen sharing
+      const screenSharer = participants.find(p => p.isScreenSharing);
+      this.isScreenShareActive = !!screenSharer;
+      this.screenShareParticipant = screenSharer || null;
     });
 
     // Subscribe to chat messages
@@ -1215,11 +1400,27 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     try {
       if (this.currentUser?.isScreenSharing) {
         this.openTokService.stopScreenSharing();
+        this.toastService.info('Screen Share', 'Screen sharing stopped');
       } else {
+        this.toastService.info('Screen Share', 'Starting screen share...');
         await this.openTokService.startScreenSharing();
+        this.toastService.success('Screen Share', 'Screen sharing started successfully');
       }
     } catch (error) {
       console.error('Failed to toggle screen sharing:', error);
+      let errorMessage = 'Failed to toggle screen sharing';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('container not found')) {
+          errorMessage = 'Unable to start screen sharing. Please try again in a moment.';
+        } else if (error.message.includes('permission')) {
+          errorMessage = 'Screen sharing permission denied. Please allow screen sharing and try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      this.toastService.error('Screen Share Failed', errorMessage);
     }
   }
 
@@ -1311,8 +1512,17 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   }
 
   openSettings(): void {
-    // Implement settings modal
-    console.log('Opening settings...');
+    this.isSettingsOpen = true;
+  }
+
+  closeSettings(): void {
+    this.isSettingsOpen = false;
+  }
+
+  onSettingsChange(settings: any): void {
+    console.log('Settings changed:', settings);
+    // Apply the new settings to the OpenTok session
+    this.toastService.success('Settings Applied', 'Your settings have been updated');
   }
 
   async retryConnection(): Promise<void> {

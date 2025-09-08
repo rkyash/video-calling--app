@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Inject, forwardRef } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Participant } from '../models/meeting.model';
 import * as OT from '@opentok/client';
@@ -9,6 +9,7 @@ import * as OT from '@opentok/client';
 export class OpenTokService {
   private session: OT.Session | null = null;
   private publisher: OT.Publisher | null = null;
+  private screenPublisher: OT.Publisher | null = null;
   private subscribers: Map<string, OT.Subscriber> = new Map();
   
   private participantsSubject = new BehaviorSubject<Participant[]>([]);
@@ -22,7 +23,14 @@ export class OpenTokService {
   private participants: Participant[] = [];
   private currentUser: Participant | null = null;
 
+  private meetingService: any = null;
+
   constructor() {}
+
+  // Method to set meeting service to avoid circular dependency
+  setMeetingService(meetingService: any): void {
+    this.meetingService = meetingService;
+  }
 
   initializeSession(apiKey: string, sessionId: string, token: string, userName: string): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -74,20 +82,24 @@ export class OpenTokService {
   }
 
   private publishStream(userName: string): void {
-    const publisherElement = document.createElement('div');
-    publisherElement.id = 'publisher';
+    const publisherContainer = document.getElementById('publisher');
     
-    this.publisher = OT.initPublisher(publisherElement, {
+    if (!publisherContainer) {
+      console.error('Publisher container not found');
+      return;
+    }
+    
+    this.publisher = OT.initPublisher(publisherContainer, {
       name: userName,
       width: '100%',
       height: '100%',
-      insertMode: 'append',
+      insertMode: 'replace',
       showControls: false,
       publishAudio: true,
       publishVideo: true
     });
 
-    if (this.session) {
+    if (this.session && this.publisher) {
       this.session.publish(this.publisher);
       
       this.currentUser = {
@@ -107,13 +119,17 @@ export class OpenTokService {
   }
 
   private subscribeToStream(stream: OT.Stream): void {
-    const subscriberElement = document.createElement('div');
-    subscriberElement.id = `subscriber-${stream.connection.connectionId}`;
+    const subscriberContainer = document.getElementById(`subscriber-${stream.connection.connectionId}`);
     
-    const subscriber = this.session?.subscribe(stream, subscriberElement, {
+    if (!subscriberContainer) {
+      console.error(`Subscriber container not found for ${stream.connection.connectionId}`);
+      return;
+    }
+    
+    const subscriber = this.session?.subscribe(stream, subscriberContainer, {
       width: '100%',
       height: '100%',
-      insertMode: 'append',
+      insertMode: 'replace',
       showControls: false
     });
 
@@ -177,6 +193,10 @@ export class OpenTokService {
       case 'signal:screenShare':
         this.updateParticipant(event.from?.connectionId || '', { isScreenSharing: data.sharing });
         break;
+      case 'signal:chat':
+        // Handle incoming chat messages
+        this.handleChatMessage(data);
+        break;
       case 'signal:hostLeft':
         // Host has left, end meeting for all participants
         this.endMeetingForAll();
@@ -189,6 +209,19 @@ export class OpenTokService {
     if (participantIndex !== -1) {
       this.participants[participantIndex] = { ...this.participants[participantIndex], ...updates };
       this.participantsSubject.next([...this.participants]);
+    }
+  }
+
+  private handleChatMessage(data: any): void {
+    if (this.meetingService && data.message && data.senderName) {
+      // Find the sender's connection ID to use as participant ID
+      const senderConnectionId = this.participants.find(p => p.name === data.senderName)?.connectionId || 'unknown';
+      
+      this.meetingService.addChatMessage(
+        senderConnectionId,
+        data.senderName,
+        data.message
+      );
     }
   }
 
@@ -206,82 +239,113 @@ export class OpenTokService {
   }
 
   toggleAudio(): void {
-    if (this.publisher) {
-      const isAudioEnabled = (this.publisher as any).stream?.hasAudio !== false;
-      this.publisher.publishAudio(!isAudioEnabled);
+    if (this.publisher && this.currentUser) {
+      const isCurrentlyMuted = this.currentUser.isAudioMuted;
+      this.publisher.publishAudio(isCurrentlyMuted);
       
-      if (this.currentUser) {
-        this.currentUser.isAudioMuted = isAudioEnabled;
-        this.sendSignal('muteAudio', { muted: isAudioEnabled });
-      }
+      this.currentUser.isAudioMuted = !isCurrentlyMuted;
+      this.sendSignal('muteAudio', { muted: !isCurrentlyMuted });
+      this.participantsSubject.next([...this.participants]);
     }
   }
 
   toggleVideo(): void {
-    if (this.publisher) {
-      const isVideoEnabled = (this.publisher as any).stream?.hasVideo !== false;
-      this.publisher.publishVideo(!isVideoEnabled);
+    if (this.publisher && this.currentUser) {
+      const isCurrentlyMuted = this.currentUser.isVideoMuted;
+      this.publisher.publishVideo(isCurrentlyMuted);
       
-      if (this.currentUser) {
-        this.currentUser.isVideoMuted = isVideoEnabled;
-        this.sendSignal('muteVideo', { muted: isVideoEnabled });
-      }
+      this.currentUser.isVideoMuted = !isCurrentlyMuted;
+      this.sendSignal('muteVideo', { muted: !isCurrentlyMuted });
+      this.participantsSubject.next([...this.participants]);
     }
   }
 
   async startScreenSharing(): Promise<void> {
     try {
-      if (this.publisher) {
-        this.session?.unpublish(this.publisher);
+      // Don't replace the camera publisher - create a separate screen publisher
+      if (this.screenPublisher) {
+        this.session?.unpublish(this.screenPublisher);
       }
 
-      const publisherElement = document.createElement('div');
-      publisherElement.id = 'screen-publisher';
+      // First set screen sharing state to trigger layout change
+      if (this.currentUser) {
+        this.currentUser.isScreenSharing = true;
+        this.sendSignal('screenShare', { 
+          sharing: true, 
+          streamId: 'pending' 
+        });
+        this.participantsSubject.next([...this.participants]);
+      }
 
-      this.publisher = OT.initPublisher(publisherElement, {
+      // Wait for the DOM to update with the new layout, then find container
+      let screenShareContainer: HTMLElement | null = null;
+      
+      try {
+        await this.waitForScreenShareContainer();
+        screenShareContainer = document.getElementById('screen-share-publisher');
+      } catch (error) {
+        console.warn('DOM container approach failed, trying fallback approach:', error);
+      }
+      
+      // Fallback: create a temporary container if the DOM one isn't available
+      if (!screenShareContainer) {
+        screenShareContainer = this.createFallbackScreenShareContainer();
+      }
+
+      this.screenPublisher = OT.initPublisher(screenShareContainer, {
         videoSource: 'screen',
-        publishAudio: true,
+        publishAudio: false, // Use microphone from camera stream
         publishVideo: true,
         width: '100%',
         height: '100%',
-        showControls: false
+        insertMode: 'replace',
+        showControls: false,
+        name: `${this.currentUser?.name || 'User'} - Screen Share`
       });
 
-      if (this.session) {
-        this.session.publish(this.publisher);
+      if (this.session && this.screenPublisher) {
+        this.session.publish(this.screenPublisher);
         
+        // Listen for screen share ended (when user stops sharing via browser UI)
+        this.screenPublisher.on('streamDestroyed', () => {
+          this.stopScreenSharing();
+        });
+
+        // Update the signal with the actual stream ID now that it's available
         if (this.currentUser) {
-          this.currentUser.isScreenSharing = true;
-          this.sendSignal('screenShare', { sharing: true });
+          this.sendSignal('screenShare', { 
+            sharing: true, 
+            streamId: this.screenPublisher.stream?.streamId 
+          });
         }
       }
     } catch (error) {
-      this.errorSubject.next('Failed to start screen sharing');
+      this.errorSubject.next('Failed to start screen sharing. Please allow screen sharing permission.');
       throw error;
     }
   }
 
   stopScreenSharing(): void {
-    if (this.publisher && this.currentUser?.isScreenSharing) {
-      this.session?.unpublish(this.publisher);
+    if (this.screenPublisher && this.currentUser?.isScreenSharing) {
+      // Stop the screen sharing publisher without affecting camera stream
+      this.session?.unpublish(this.screenPublisher);
+      this.screenPublisher = null;
       
-      const publisherElement = document.createElement('div');
-      publisherElement.id = 'publisher';
+      // Remove screen share containers (both regular and fallback)
+      const screenShareContainer = document.getElementById('screen-share-publisher');
+      const fallbackContainer = document.getElementById('screen-share-publisher-fallback');
       
-      this.publisher = OT.initPublisher(publisherElement, {
-        name: this.currentUser.name,
-        publishAudio: true,
-        publishVideo: true,
-        width: '100%',
-        height: '100%',
-        showControls: false
-      });
+      if (screenShareContainer) {
+        screenShareContainer.innerHTML = ''; // Clear content but keep container for future use
+      }
+      if (fallbackContainer) {
+        fallbackContainer.remove(); // Remove fallback container completely
+      }
 
-      if (this.session) {
-        this.session.publish(this.publisher);
-        
+      if (this.currentUser) {
         this.currentUser.isScreenSharing = false;
         this.sendSignal('screenShare', { sharing: false });
+        this.participantsSubject.next([...this.participants]);
       }
     }
   }
@@ -349,8 +413,54 @@ export class OpenTokService {
     this.cleanup();
   }
 
+  private async waitForScreenShareContainer(maxWait: number = 2000): Promise<void> {
+    const startTime = Date.now();
+    return new Promise((resolve, reject) => {
+      const checkForContainer = () => {
+        const container = document.getElementById('screen-share-publisher');
+        if (container) {
+          console.log('Screen share container found after', Date.now() - startTime, 'ms');
+          resolve();
+        } else if (Date.now() - startTime > maxWait) {
+          console.error('Screen share container not found after', maxWait, 'ms');
+          reject(new Error('Screen share container not found within timeout'));
+        } else {
+          setTimeout(checkForContainer, 50); // Check more frequently
+        }
+      };
+      
+      // Start checking after a small delay to allow Angular to render
+      setTimeout(checkForContainer, 100);
+    });
+  }
+
+  private createFallbackScreenShareContainer(): HTMLElement {
+    console.log('Creating fallback screen share container');
+    const container = document.createElement('div');
+    container.id = 'screen-share-publisher-fallback';
+    container.style.width = '100%';
+    container.style.height = '100%';
+    container.style.position = 'absolute';
+    container.style.top = '0';
+    container.style.left = '0';
+    container.style.zIndex = '1000';
+    container.style.backgroundColor = '#000';
+    
+    // Try to append to screen share element if it exists
+    const screenShareElement = document.querySelector('.screen-share-element');
+    if (screenShareElement) {
+      screenShareElement.appendChild(container);
+    } else {
+      // Fallback to body
+      document.body.appendChild(container);
+    }
+    
+    return container;
+  }
+
   private cleanup(): void {
     this.publisher = null;
+    this.screenPublisher = null;
     this.session = null;
     this.subscribers.clear();
     this.participants = [];
