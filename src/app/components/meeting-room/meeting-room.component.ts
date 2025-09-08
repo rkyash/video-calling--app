@@ -1471,12 +1471,16 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   // Chat Methods
   sendMessage(): void {
     if (this.newMessage.trim() && this.currentUser) {
+      // Send the signal to other participants
       this.openTokService.sendChatMessage(this.newMessage.trim());
+      
+      // Add the message locally for the sender (since we filter out our own signals)
       this.meetingService.addChatMessage(
         this.currentUser.id,
         this.currentUser.name,
         this.newMessage.trim()
       );
+      
       this.newMessage = '';
       setTimeout(() => this.scrollChatToBottom(), 100);
     }

@@ -93,7 +93,7 @@ export class OpenTokService {
       name: userName,
       width: '100%',
       height: '100%',
-      insertMode: 'replace',
+      insertMode: 'append',
       showControls: false,
       publishAudio: true,
       publishVideo: true
@@ -129,7 +129,7 @@ export class OpenTokService {
     const subscriber = this.session?.subscribe(stream, subscriberContainer, {
       width: '100%',
       height: '100%',
-      insertMode: 'replace',
+      insertMode: 'append',
       showControls: false
     });
 
@@ -195,7 +195,7 @@ export class OpenTokService {
         break;
       case 'signal:chat':
         // Handle incoming chat messages
-        this.handleChatMessage(data);
+        this.handleChatMessage(data, event.from?.connectionId);
         break;
       case 'signal:hostLeft':
         // Host has left, end meeting for all participants
@@ -212,10 +212,15 @@ export class OpenTokService {
     }
   }
 
-  private handleChatMessage(data: any): void {
+  private handleChatMessage(data: any, fromConnectionId?: string): void {
     if (this.meetingService && data.message && data.senderName) {
+      // Don't handle chat messages from the current user - they already added it locally
+      if (this.currentUser && data.senderName === this.currentUser.name) {
+        return;
+      }
+
       // Find the sender's connection ID to use as participant ID
-      const senderConnectionId = this.participants.find(p => p.name === data.senderName)?.connectionId || 'unknown';
+      const senderConnectionId = this.participants.find(p => p.name === data.senderName)?.connectionId || fromConnectionId || 'unknown';
       
       this.meetingService.addChatMessage(
         senderConnectionId,
@@ -298,7 +303,7 @@ export class OpenTokService {
         publishVideo: true,
         width: '100%',
         height: '100%',
-        insertMode: 'replace',
+        insertMode: 'append',
         showControls: false,
         name: `${this.currentUser?.name || 'User'} - Screen Share`
       });
