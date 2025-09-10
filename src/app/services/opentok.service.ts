@@ -45,6 +45,21 @@ export class OpenTokService {
           this.connectionStatusSubject.next('connected');
           this.publishStream(userName, isHost);
 
+          // Send participant info signal to other participants and request their info
+          setTimeout(() => {
+            this.sendSignal('participantJoined', {
+              name: userName,
+              isHost: isHost,
+              connectionId: this.session?.connection?.connectionId
+            });
+            
+            // Request info from all existing participants
+            this.sendSignal('requestParticipantInfo', {
+              requestingParticipant: userName,
+              connectionId: this.session?.connection?.connectionId
+            });
+          }, 500);
+
           // Auto-start recording when session connects and user is host
           if (isHost && this.meetingService) {
             setTimeout(() => {
@@ -69,7 +84,7 @@ export class OpenTokService {
         });
 
         this.session.on('connectionCreated', (event) => {
-          this.addParticipant(event.connection, isHost);
+          this.addParticipant(event.connection, false); // Default to non-host, will be updated by signal
         });
 
         this.session.on('connectionDestroyed', (event) => {
@@ -138,7 +153,7 @@ export class OpenTokService {
     }
   }
 
-  private subscribeToStream(stream: OT.Stream, isHost: boolean): void {
+  private subscribeToStream(stream: OT.Stream, _isHost: boolean): void {
     const subscriberContainer = document.getElementById(`subscriber-${stream.connection.connectionId}`);
 
     if (!subscriberContainer) {
@@ -155,7 +170,12 @@ export class OpenTokService {
 
     if (subscriber) {
       this.subscribers.set(stream.connection.connectionId, subscriber);
-      this.addParticipant(stream.connection, isHost);
+      
+      // Check if participant already exists before adding
+      const existingParticipant = this.participants.find(p => p.connectionId === stream.connection.connectionId);
+      if (!existingParticipant) {
+        this.addParticipant(stream.connection, false); // Default to non-host, will be updated by signal
+      }
     }
   }
 
@@ -163,10 +183,33 @@ export class OpenTokService {
     console.log('Adding participant:', connection);
     const existingParticipant = this.participants.find(p => p.connectionId === connection.connectionId);
     if (!existingParticipant) {
+      // Parse connection data to get participant name
+      let participantName = 'Unknown';
+      if (connection.data) {
+        try {
+          const connectionData = JSON.parse(connection.data);
+          participantName = connectionData.name || connectionData.userName || connectionData.participantName || 'Unknown';
+        } catch (error) {
+          // If parsing fails, use connection.data as plain text
+          participantName = connection.data || 'Unknown';
+        }
+      }
+
+      // Determine if this participant is actually the host based on their data or role
+      let participantIsHost = isHost;
+      if (connection.data) {
+        try {
+          const connectionData = JSON.parse(connection.data);
+          participantIsHost = connectionData.isHost || connectionData.role === 'host' || isHost;
+        } catch (error) {
+          // Keep the passed isHost value if parsing fails
+        }
+      }
+
       const participant: Participant = {
         id: connection.connectionId,
-        name: connection.data || 'Unknown',
-        isHost: isHost,
+        name: participantName,
+        isHost: participantIsHost,
         isAudioMuted: false,
         isVideoMuted: false,
         isScreenSharing: false,
@@ -176,6 +219,7 @@ export class OpenTokService {
 
       this.participants.push(participant);
       this.participantsSubject.next([...this.participants]);
+      console.log('Added participant:', participant);
     }
   }
 
@@ -226,6 +270,24 @@ export class OpenTokService {
          // Host has left, end meeting for all participants         
         this.endMeetingForAll();
         break;
+      case 'signal:participantJoined':
+        // Update participant info when someone joins
+        this.updateParticipantInfo(event.from?.connectionId || '', data);
+        break;
+      case 'signal:requestParticipantInfo':
+        // Send our info to the requesting participant
+        if (this.currentUser && this.session) {
+          this.sendSignal('participantInfoResponse', {
+            name: this.currentUser.name,
+            isHost: this.currentUser.isHost,
+            connectionId: this.currentUser.connectionId
+          });
+        }
+        break;
+      case 'signal:participantInfoResponse':
+        // Update participant info from response
+        this.updateParticipantInfo(event.from?.connectionId || '', data);
+        break;
     }
   }
 
@@ -234,6 +296,35 @@ export class OpenTokService {
     if (participantIndex !== -1) {
       this.participants[participantIndex] = { ...this.participants[participantIndex], ...updates };
       this.participantsSubject.next([...this.participants]);
+    }
+  }
+
+  private updateParticipantInfo(connectionId: string, data: any): void {
+    const participantIndex = this.participants.findIndex(p => p.connectionId === connectionId);
+    if (participantIndex !== -1) {
+      // Update participant with the correct name and host status
+      this.participants[participantIndex] = {
+        ...this.participants[participantIndex],
+        name: data.name || this.participants[participantIndex].name,
+        isHost: data.isHost || this.participants[participantIndex].isHost
+      };
+      this.participantsSubject.next([...this.participants]);
+      console.log('Updated participant info:', this.participants[participantIndex]);
+    } else {
+      // If participant doesn't exist, create them
+      const participant: Participant = {
+        id: connectionId,
+        name: data.name || 'Unknown',
+        isHost: data.isHost || false,
+        isAudioMuted: false,
+        isVideoMuted: false,
+        isScreenSharing: false,
+        hasRaisedHand: false,
+        connectionId: connectionId
+      };
+      this.participants.push(participant);
+      this.participantsSubject.next([...this.participants]);
+      console.log('Created new participant from signal:', participant);
     }
   }
 
@@ -496,7 +587,11 @@ export class OpenTokService {
     this.currentUser = null;
     this.participantsSubject.next([]);
     this.connectionStatusSubject.next('disconnected');
-    this.meetingService.performLocalCleanup();
+    
+    // Only call performLocalCleanup if meetingService exists
+    if (this.meetingService && typeof this.meetingService.performLocalCleanup === 'function') {
+      this.meetingService.performLocalCleanup();
+    }
   }
 
   getCurrentUser(): Participant | null {

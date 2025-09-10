@@ -1622,9 +1622,13 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   private subscribeToServices(): void {
     // Subscribe to participants
     const participantsSub = this.openTokService.participants$.subscribe(participants => {
+      console.log('Participants updated:', participants);
       this.participants = participants;
       this.currentUser = this.openTokService.getCurrentUser();
       this.remoteParticipants = participants.filter(p => p.id !== this.currentUser?.id);
+      
+      console.log('Current user:', this.currentUser);
+      console.log('Remote participants:', this.remoteParticipants);
 
       // Check if anyone is screen sharing
       const screenSharer = participants.find(p => p.isScreenSharing);
