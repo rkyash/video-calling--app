@@ -1,0 +1,409 @@
+<div class="meeting-room" [class.fullscreen]="isFullscreen">
+    <!-- Meeting Header -->
+    <!-- <header class="meeting-header" [class.hidden]="isFullscreen">
+        <div class="meeting-info">
+          <h2>{{ currentMeeting?.name || 'Meeting Room' }}</h2>
+          <div class="meeting-details">
+            <span class="meeting-id">ID: {{ meetingId }}</span>
+            <span class="participant-count">
+              <i class="fas fa-users"></i> {{ participants.length }}
+            </span>
+            <span class="recording-indicator" *ngIf="isRecording">
+              <i class="fas fa-circle recording-dot"></i> REC
+            </span>
+          </div>
+        </div>
+
+        <div class="meeting-actions">
+          <button class="btn btn-outline btn-sm" (click)="copyMeetingLink()">
+            <i class="fas fa-link"></i> Copy Link
+          </button>
+          <button class="btn btn-outline btn-sm" (click)="toggleFullscreen()">
+            <i [class]="isFullscreen ? 'fas fa-compress' : 'fas fa-expand'"></i>
+          </button>
+          <button class="btn btn-secondary btn-sm" (click)="leaveMeeting()">
+            <i class="fas fa-sign-out-alt"></i> Leave
+          </button>
+        </div>
+      </header> -->
+
+    <!-- Main Meeting Content -->
+    <div class="meeting-content">
+        <!-- Video Grid -->
+        <div class="video-section" [class.chat-open]="isChatOpen" [class.screen-share-active]="isScreenShareActive">
+            <!-- Screen Share Layout (Google Meet Style) -->
+            <div *ngIf="isScreenShareActive" class="screen-share-layout">
+                <!-- Main Screen Share Area -->
+                <div class="screen-share-main">
+                    <div class="screen-share-container">
+                        <div id="screen-share-publisher" class="screen-share-element"></div>
+                        <div class="screen-share-overlay">
+                            <span class="screen-share-label">
+                                <i class="fas fa-desktop"></i>
+                                {{ screenShareParticipant?.name || 'Unknown' }}'s Screen
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Participants Sidebar -->
+                <div class="participants-sidebar">
+                    <!-- Local Video -->
+                    <div class="video-participant local-video mini">
+                        <div class="video-container">
+                            <!-- Show avatar overlay instead of video element for mini layout -->
+                            <div class="video-disabled-overlay mini">
+                                <div class="participant-avatar small">
+                                    <span class="avatar-initials">{{ getParticipantInitials(currentUser?.name) }}</span>
+                                </div>
+                            </div>
+                            <div class="participant-overlay">
+                                <span class="participant-name">You</span>
+                                <div class="participant-status">
+                                    <span *ngIf="currentUser?.isAudioMuted" class="status-icon muted">
+                                        <i class="fas fa-microphone-slash"></i>
+                                    </span>
+                                    <span *ngIf="currentUser?.isVideoMuted" class="status-icon muted">
+                                        <i class="fas fa-video-slash"></i>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Remote Videos -->
+                    <div *ngFor="let participant of remoteParticipants" class="video-participant mini"
+                        [attr.data-connection-id]="participant.connectionId"
+                        [class.screen-sharer]="participant.isScreenSharing">
+                        <div class="video-container">
+                            <!-- Show avatar overlay instead of video element for mini layout -->
+                            <div class="video-disabled-overlay mini">
+                                <div class="participant-avatar small">
+                                    <span class="avatar-initials">{{ getParticipantInitials(participant.name) }}</span>
+                                </div>
+                            </div>
+                            <div class="participant-overlay">
+                                <span class="participant-name">{{ participant.name }}</span>
+                                <div class="participant-status">
+                                    <span *ngIf="participant.isHost" class="status-icon host">
+                                        <i class="fas fa-crown"></i>
+                                    </span>
+                                    <span *ngIf="participant.isAudioMuted" class="status-icon muted">
+                                        <i class="fas fa-microphone-slash"></i>
+                                    </span>
+                                    <span *ngIf="participant.isVideoMuted" class="status-icon muted">
+                                        <i class="fas fa-video-slash"></i>
+                                    </span>
+                                    <span *ngIf="participant.hasRaisedHand" class="status-icon raised-hand">
+                                        <i class="fas fa-hand-paper"></i>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Normal Grid Layout (when no screen sharing) -->
+            <div *ngIf="!isScreenShareActive" class="video-grid" #videoGrid [ngClass]="getVideoGridClass()">
+                <!-- Local Video -->
+                <div class="video-participant local-video">
+                    <div class="video-container">
+                        <div id="publisher" class="video-element"
+                            [style.display]="currentUser?.isVideoMuted ? 'none' : 'block'"></div>
+                        <!-- Video disabled overlay - show participant name/avatar like Google Meet -->
+                        <div class="video-disabled-overlay" *ngIf="currentUser?.isVideoMuted">
+                            <div class="participant-avatar">
+                                <span class="avatar-initials">{{ getParticipantInitials(currentUser?.name) }}</span>
+                            </div>
+                            <div class="participant-name-large">{{ currentUser?.name }}</div>
+                        </div>
+                        <div class="participant-overlay">
+                            <span class="participant-name">{{ currentUser?.name }} (You)</span>
+                            <div class="participant-status">
+                                <span *ngIf="currentUser?.isAudioMuted" class="status-icon muted">
+                                    <i class="fas fa-microphone-slash"></i>
+                                </span>
+                                <span *ngIf="currentUser?.isVideoMuted" class="status-icon muted">
+                                    <i class="fas fa-video-slash"></i>
+                                </span>
+                                <span *ngIf="currentUser?.hasRaisedHand" class="status-icon raised-hand">
+                                    <i class="fas fa-hand-paper"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Remote Videos -->
+                <div *ngFor="let participant of remoteParticipants" class="video-participant"
+                    [attr.data-connection-id]="participant.connectionId">
+                    <div class="video-container">
+                        <div [id]="'subscriber-' + participant.connectionId" class="video-element"
+                            [style.display]="participant.isVideoMuted ? 'none' : 'block'"></div>
+                        <!-- Video disabled overlay - show participant name/avatar like Google Meet -->
+                        <div class="video-disabled-overlay" *ngIf="participant.isVideoMuted">
+                            <div class="participant-avatar">
+                                <span class="avatar-initials">{{ getParticipantInitials(participant.name) }}</span>
+                            </div>
+                            <div class="participant-name-large">{{ participant.name }}</div>
+                        </div>
+                        <div class="participant-overlay">
+                            <span class="participant-name">{{ participant.name }}</span>
+                            <div class="participant-status">
+                                <span *ngIf="participant.isHost" class="status-icon host">
+                                    <i class="fas fa-crown"></i>
+                                </span>
+                                <span *ngIf="participant.isAudioMuted" class="status-icon muted">
+                                    <i class="fas fa-microphone-slash"></i>
+                                </span>
+                                <span *ngIf="participant.isVideoMuted" class="status-icon muted">
+                                    <i class="fas fa-video-slash"></i>
+                                </span>
+                                <span *ngIf="participant.hasRaisedHand" class="status-icon raised-hand">
+                                    <i class="fas fa-hand-paper"></i>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Sidebar -->
+        <div class="chat-sidebar" [class.open]="isChatOpen">
+            <div class="chat-header">
+                <h3><i class="fas fa-comments"></i> Chat</h3>
+                <button class="chat-toggle" (click)="toggleChat()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="chat-messages" #chatMessagesContainer>
+                <div *ngFor="let message of chatMessages; trackBy: trackByMessageId" class="chat-message"
+                    [ngClass]="{ 'system-message': message.type === 'system', 'own-message': message.participantId === currentUser?.id }">
+                    <div *ngIf="message.type === 'text'" class="message-content">
+                        <div class="message-header">
+                            <span class="sender-name">{{ message.participantName }}</span>
+                            <span class="message-time">{{ formatTime(message.timestamp) }}</span>
+                        </div>
+                        <div class="message-text">{{ message.message }}</div>
+                    </div>
+                    <div *ngIf="message.type === 'system'" class="system-content">
+                        <i class="fas fa-info-circle"></i>
+                        {{ message.message }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input">
+                <div class="input-group">
+                    <input type="text" [(ngModel)]="newMessage" (keyup.enter)="sendMessage()"
+                        placeholder="Type a message..." class="message-input" [disabled]="!currentUser">
+                    <button class="send-button" (click)="sendMessage()" [disabled]="!newMessage.trim() || !currentUser">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Meeting Controls -->
+    <div class="meeting-controls" [class.hidden]="isFullscreen">
+        <!-- Recording Indicator (Left Side) -->
+        <div class="recording-info">
+            <div class="recording-indicator" *ngIf="isRecording">
+                <div class="recording-dot"></div>
+                <span class="recording-text">REC</span>
+                <span class="recording-timer">{{ recordingDuration }}</span>
+            </div>
+        </div>
+
+        <!-- Center Control Groups -->
+        <div class="controls-center">
+            <!-- Primary Controls (Always Visible) -->
+            <div class="primary-controls">
+                <!-- Audio Controls -->
+                <button class="control-button" [class.muted]="currentUser?.isAudioMuted" (click)="toggleAudio()"
+                    title="Toggle Microphone">
+                    <i [class]="currentUser?.isAudioMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone'"></i>
+                </button>
+
+                <!-- Video Controls -->
+                <button class="control-button" [class.muted]="currentUser?.isVideoMuted" (click)="toggleVideo()"
+                    title="Toggle Camera">
+                    <i [class]="currentUser?.isVideoMuted ? 'fas fa-video-slash' : 'fas fa-video'"></i>
+                </button>
+
+                <!-- Screen Share -->
+                <button class="control-button" [class.active]="currentUser?.isScreenSharing"
+                    (click)="toggleScreenShare()" title="Share Screen">
+                    <i class="fas fa-desktop"></i>
+                </button>
+
+                <!-- Chat -->
+                <button class="control-button" [class.active]="isChatOpen" (click)="toggleChat()" title="Toggle Chat">
+                    <i class="fas fa-comments"></i>
+                    <span class="notification-badge" *ngIf="unreadMessages > 0">{{ unreadMessages }}</span>
+                </button>
+
+                <!-- End Meeting -->
+                <button class="control-button end-call" (click)="leaveMeeting()" title="Leave Meeting">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+            </div>
+
+            <!-- Secondary Controls (Hidden on Mobile, Shown in More Menu) -->
+            <div class="secondary-controls">
+                <!-- Screenshot -->
+                <button class="control-button" (click)="takeScreenshot()" title="Take Screenshot">
+                    <i class="fas fa-camera"></i>
+                </button>
+
+                <!-- Raise Hand -->
+                <button class="control-button" [class.active]="currentUser?.hasRaisedHand" (click)="toggleRaiseHand()"
+                    title="Raise Hand">
+                    <i class="fas fa-hand-paper"></i>
+                </button>
+
+                <!-- Participants -->
+                <button class="control-button" [class.active]="isParticipantsOpen" (click)="toggleParticipants()"
+                    title="Participants">
+                    <i class="fas fa-users"></i>
+                    <span class="count-badge">{{ participants.length }}</span>
+                </button>
+
+                <!-- Recording -->
+                <button class="control-button" [class.active]="isScreenRecording" (click)="toggleScreenRecording()"
+                    title="Toggle Screen Recording" *ngIf="currentUser?.isHost">
+                    <i class="fas fa-record-vinyl"></i>
+                </button>
+
+                <!-- Settings -->
+                <button class="control-button" (click)="openSettings()" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+
+            <!-- More Menu Button (Mobile Only) -->
+            <div class="more-menu-container">
+                <button class="control-button more-button" (click)="toggleMoreMenu()" [class.active]="isMoreMenuOpen"
+                    title="More Options">
+                    <i class="fas fa-ellipsis-h"></i>
+                </button>
+
+                <!-- More Menu Dropdown -->
+                <div class="more-menu" [class.open]="isMoreMenuOpen">
+                    <button class="more-menu-item" (click)="takeScreenshot(); toggleMoreMenu()" title="Take Screenshot">
+                        <i class="fas fa-camera"></i>
+                        <span>Screenshot</span>
+                    </button>
+
+                    <button class="more-menu-item" (click)="toggleRaiseHand(); toggleMoreMenu()"
+                        [class.active]="currentUser?.hasRaisedHand" title="Raise Hand">
+                        <i class="fas fa-hand-paper"></i>
+                        <span>Raise Hand</span>
+                    </button>
+
+                    <button class="more-menu-item" (click)="toggleParticipants(); toggleMoreMenu()"
+                        title="Participants">
+                        <i class="fas fa-users"></i>
+                        <span>Participants ({{ participants.length }})</span>
+                    </button>
+
+                    <button class="more-menu-item" (click)="toggleRecording(); toggleMoreMenu()"
+                        [class.active]="isRecording" title="Toggle Recording" *ngIf="currentUser?.isHost">
+                        <i class="fas fa-record-vinyl"></i>
+                        <span>{{ isRecording ? 'Stop' : 'Start' }} Recording</span>
+                    </button>
+
+                    <button class="more-menu-item" (click)="openSettings(); toggleMoreMenu()" title="Settings">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </button>
+                </div>
+            </div>
+        </div> <!-- End controls-center -->
+
+        <!-- Right Spacer (to balance left recording indicator) -->
+        <div class="controls-spacer">
+
+            <!-- Recording Indicator (Left Side) -->
+            <div class="scerreen-recording-info">
+                <div class="recording-indicator" *ngIf="isScreenRecording">
+                    <div class="recording-dot"></div>
+                    <span class="recording-text">REC</span>
+                    <span class="recording-timer">{{ screenRecordingDuration }}</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Participants Panel -->
+    <div class="participants-panel" [class.open]="isParticipantsOpen">
+        <div class="panel-header">
+            <h3><i class="fas fa-users"></i> Participants ({{ participants.length }})</h3>
+            <button class="panel-close" (click)="toggleParticipants()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="participants-list">
+            <div *ngFor="let participant of participants" class="participant-item">
+                <div class="participant-info">
+                    <div class="participant-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="participant-details">
+                        <span class="participant-name">
+                            {{ participant.name }}
+                            <span *ngIf="participant.id === currentUser?.id" class="you-label">(You)</span>
+                        </span>
+                        <div class="participant-badges">
+                            <span *ngIf="participant.isHost" class="badge host-badge">
+                                <i class="fas fa-crown"></i> Host
+                            </span>
+                            <span *ngIf="participant.hasRaisedHand" class="badge raised-hand-badge">
+                                <i class="fas fa-hand-paper"></i> Hand Raised
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="participant-actions" *ngIf="currentUser?.isHost && participant.id !== currentUser?.id">
+                    <button class="action-button" (click)="muteParticipant(participant)" title="Mute Participant">
+                        <i class="fas fa-microphone-slash"></i>
+                    </button>
+                    <button class="action-button remove" (click)="removeParticipant(participant)"
+                        title="Remove Participant">
+                        <i class="fas fa-user-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" *ngIf="isConnecting">
+    <div class="loading-content">
+        <div class="spinner large"></div>
+        <h3>Connecting to meeting...</h3>
+        <p>Please wait while we set up your video call.</p>
+    </div>
+</div>
+
+<!-- Error Overlay -->
+<div class="error-overlay" *ngIf="connectionError">
+    <div class="error-content">
+        <i class="fas fa-exclamation-triangle"></i>
+        <h3>Connection Error</h3>
+        <p>{{ connectionError }}</p>
+        <button class="btn btn-primary" (click)="retryConnection()">
+            <i class="fas fa-redo"></i> Retry
+        </button>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<app-settings-modal [isOpen]="isSettingsOpen" (close)="closeSettings()"
+    (settingsChange)="onSettingsChange($event)"></app-settings-modal>

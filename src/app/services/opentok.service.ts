@@ -292,8 +292,8 @@ export class OpenTokService {
       if (connection.data) {
         try {
           const connectionData = JSON.parse(connection.data);
-          participantName = connectionData.name || connectionData.userName || connectionData.participantName || 'Unknown';
-          participantIsHost = connectionData.isHost || connectionData.role === 'host' || isHost;
+          participantName = connectionData?.name || connectionData?.userName || connectionData?.participantName || 'Unknown';
+          participantIsHost = connectionData?.isHost || connectionData?.role === 'host' || isHost;
           // Get initial mute states from connection data if available
           initialAudioMuted = connectionData.isAudioMuted || false;
           initialVideoMuted = connectionData.isVideoMuted || false;
@@ -561,7 +561,7 @@ export class OpenTokService {
       this.screenPublisher = OT.initPublisher(screenShareContainer, {
         videoSource: 'screen',
         publishAudio: false, // Use microphone from camera stream
-        publishVideo: true,
+        // publishVideo: true,
         width: '100%',
         height: '100%',
         insertMode: 'append',
