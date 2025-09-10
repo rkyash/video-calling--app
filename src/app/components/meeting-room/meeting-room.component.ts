@@ -68,7 +68,12 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
               <!-- Local Video -->
               <div class="video-participant local-video mini">
                 <div class="video-container">
-                  <div id="publisher" class="video-element"></div>
+                  <!-- Show avatar overlay instead of video element for mini layout -->
+                  <div class="video-disabled-overlay mini">
+                    <div class="participant-avatar small">
+                      <span class="avatar-initials">{{ getParticipantInitials(currentUser?.name) }}</span>
+                    </div>
+                  </div>
                   <div class="participant-overlay">
                     <span class="participant-name">You</span>
                     <div class="participant-status">
@@ -91,7 +96,12 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
                 [class.screen-sharer]="participant.isScreenSharing"
               >
                 <div class="video-container">
-                  <div [id]="'subscriber-' + participant.connectionId" class="video-element"></div>
+                  <!-- Show avatar overlay instead of video element for mini layout -->
+                  <div class="video-disabled-overlay mini">
+                    <div class="participant-avatar small">
+                      <span class="avatar-initials">{{ getParticipantInitials(participant.name) }}</span>
+                    </div>
+                  </div>
                   <div class="participant-overlay">
                     <span class="participant-name">{{ participant.name }}</span>
                     <div class="participant-status">
@@ -119,7 +129,15 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
             <!-- Local Video -->
             <div class="video-participant local-video">
               <div class="video-container">
-                <div id="publisher" class="video-element"></div>
+                <div id="publisher" class="video-element" 
+                     [style.display]="currentUser?.isVideoMuted ? 'none' : 'block'"></div>
+                <!-- Video disabled overlay - show participant name/avatar like Google Meet -->
+                <div class="video-disabled-overlay" *ngIf="currentUser?.isVideoMuted">
+                  <div class="participant-avatar">
+                    <span class="avatar-initials">{{ getParticipantInitials(currentUser?.name) }}</span>
+                  </div>
+                  <div class="participant-name-large">{{ currentUser?.name }}</div>
+                </div>
                 <div class="participant-overlay">
                   <span class="participant-name">{{ currentUser?.name }} (You)</span>
                   <div class="participant-status">
@@ -144,7 +162,15 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
               [attr.data-connection-id]="participant.connectionId"
             >
               <div class="video-container">
-                <div [id]="'subscriber-' + participant.connectionId" class="video-element"></div>
+                <div [id]="'subscriber-' + participant.connectionId" class="video-element"
+                     [style.display]="participant.isVideoMuted ? 'none' : 'block'"></div>
+                <!-- Video disabled overlay - show participant name/avatar like Google Meet -->
+                <div class="video-disabled-overlay" *ngIf="participant.isVideoMuted">
+                  <div class="participant-avatar">
+                    <span class="avatar-initials">{{ getParticipantInitials(participant.name) }}</span>
+                  </div>
+                  <div class="participant-name-large">{{ participant.name }}</div>
+                </div>
                 <div class="participant-overlay">
                   <span class="participant-name">{{ participant.name }}</span>
                   <div class="participant-status">
@@ -308,6 +334,7 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
             <!-- Participants -->
             <button 
               class="control-button"
+              [class.active]="isParticipantsOpen"
               (click)="toggleParticipants()"
               title="Participants"
             >
@@ -676,10 +703,41 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
 
       .video-participant.mini {
         min-height: 120px;
+        min-width: 120px;
         flex-shrink: 0;
+        background: var(--dark-card);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
 
         &.screen-sharer {
           border: 2px solid var(--success-color);
+        }
+        
+        .video-container {
+          height: 100%;
+          position: relative;
+        }
+        
+        .video-element {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          background: var(--dark-surface);
+        }
+        
+        .participant-overlay {
+          padding: 0.25rem 0.5rem;
+          
+          .participant-name {
+            font-size: 0.75rem;
+          }
+          
+          .status-icon {
+            width: 16px;
+            height: 16px;
+            font-size: 0.625rem;
+          }
         }
       }
     }
@@ -715,6 +773,76 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
           }
         }
 
+        .video-disabled-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          z-index: 5;
+
+          &.mini {
+            background: var(--dark-surface);
+            border: 2px solid var(--primary-color);
+            border-radius: 8px;
+            
+            .participant-avatar {
+              width: 40px;
+              height: 40px;
+              
+              &.small {
+                width: 30px;
+                height: 30px;
+              }
+              
+              .avatar-initials {
+                font-size: 0.75rem;
+              }
+            }
+            
+            .participant-name-large {
+              display: none;
+            }
+          }
+
+          .participant-avatar {
+            width: 80px;
+            height: 80px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+            &.small {
+              width: 60px;
+              height: 60px;
+            }
+
+            .avatar-initials {
+              color: white;
+              font-size: 1.5rem;
+              font-weight: 600;
+              text-transform: uppercase;
+            }
+          }
+
+          .participant-name-large {
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+          }
+        }
+
         .participant-overlay {
           position: absolute;
           bottom: 0;
@@ -725,6 +853,7 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
           display: flex;
           justify-content: space-between;
           align-items: flex-end;
+          z-index: 10;
 
           .participant-name {
             color: white;
@@ -1406,6 +1535,36 @@ import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models
           min-width: 120px;
           min-height: 80px;
           flex-shrink: 0;
+          background: var(--dark-card);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          overflow: hidden;
+          
+          .video-container {
+            height: 100%;
+            position: relative;
+          }
+          
+          .video-element {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: var(--dark-surface);
+          }
+          
+          .participant-overlay {
+            padding: 0.25rem 0.5rem;
+            
+            .participant-name {
+              font-size: 0.75rem;
+            }
+            
+            .status-icon {
+              width: 16px;
+              height: 16px;
+              font-size: 0.625rem;
+            }
+          }
         }
       }
 
@@ -1629,6 +1788,14 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       
       console.log('Current user:', this.currentUser);
       console.log('Remote participants:', this.remoteParticipants);
+      
+      // Debug video overlay visibility
+      if (this.currentUser) {
+        console.log('Current user video muted state:', this.currentUser.isVideoMuted);
+      }
+      this.remoteParticipants.forEach(p => {
+        console.log(`Remote participant ${p.name} video muted:`, p.isVideoMuted);
+      });
 
       // Check if anyone is screen sharing
       const screenSharer = participants.find(p => p.isScreenSharing);
@@ -1697,7 +1864,14 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   }
 
   toggleVideo(): void {
+    console.log('Meeting room: Toggle video called');
+    console.log('Before toggle - current user video muted:', this.currentUser?.isVideoMuted);
     this.openTokService.toggleVideo();
+    
+    // Add a small delay to check the state after toggle
+    setTimeout(() => {
+      console.log('After toggle - current user video muted:', this.currentUser?.isVideoMuted);
+    }, 100);
   }
 
   async toggleScreenShare(): Promise<void> {
@@ -1851,11 +2025,9 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     this.isConnecting = true;
     const queryParams = this.route.snapshot.queryParams;
     const participantName = queryParams['name'] || 'Anonymous';
-    const isHost = queryParams['host'] === 'true';
     // Get join settings from query parameters
     const joinAudioEnabled = queryParams['joinAudio'] === 'true';
     const joinVideoEnabled = queryParams['joinVideo'] === 'true';
-    // await this.initializeMeeting(participantName, isHost);
     await this.initializeMeeting(participantName, joinAudioEnabled, joinVideoEnabled);
   }
 
@@ -1864,7 +2036,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     if (confirmLeave) {
       try {
         // Call disconnect API and wait for response
-        const response = await this.meetingService.disconnectParticipant();
+        await this.meetingService.disconnectParticipant();
         
         // After getting API response, call participantLeft
         this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
@@ -1887,6 +2059,17 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
   trackByMessageId(_index: number, message: ChatMessage): string {
     return message.id;
+  }
+
+  getParticipantInitials(name?: string): string {
+    if (!name) return '?';
+    
+    const words = name.trim().split(' ');
+    if (words.length === 1) {
+      return words[0].substring(0, 2).toUpperCase();
+    } else {
+      return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+    }
   }
 
   // Recording Timer Methods

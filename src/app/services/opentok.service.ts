@@ -47,9 +47,19 @@ export class OpenTokService {
 
           // Send participant info signal to other participants and request their info
           setTimeout(() => {
+            // Get current user state for signaling
+            const currentState = this.currentUser || {
+              isAudioMuted: this.joinSettings.audioEnabled === false,
+              isVideoMuted: this.joinSettings.videoEnabled === false
+            };
+            
+            console.log('Sending initial participant state:', currentState);
+            
             this.sendSignal('participantJoined', {
               name: userName,
               isHost: isHost,
+              isAudioMuted: currentState.isAudioMuted,
+              isVideoMuted: currentState.isVideoMuted,
               connectionId: this.session?.connection?.connectionId
             });
             
@@ -76,11 +86,33 @@ export class OpenTokService {
         });
 
         this.session.on('streamCreated', (event) => {
+          console.log('Stream created:', event.stream);
+          console.log('Stream has audio:', event.stream.hasAudio);
+          console.log('Stream has video:', event.stream.hasVideo);
           this.subscribeToStream(event.stream, isHost);
         });
 
         this.session.on('streamDestroyed', (event) => {
+          console.log('Stream destroyed:', event.stream);
           this.removeParticipant(event.stream.connection.connectionId);
+        });
+
+        this.session.on('streamPropertyChanged', (event) => {
+          console.log('Stream property changed:', event);
+          if (event.changedProperty === 'hasVideo') {
+            console.log(`Video property changed for ${event.stream.connection.connectionId}: hasVideo = ${event.stream.hasVideo}`);
+            // Update participant video mute state based on stream property
+            this.updateParticipant(event.stream.connection.connectionId, { 
+              isVideoMuted: !event.stream.hasVideo 
+            });
+          }
+          if (event.changedProperty === 'hasAudio') {
+            console.log(`Audio property changed for ${event.stream.connection.connectionId}: hasAudio = ${event.stream.hasAudio}`);
+            // Update participant audio mute state based on stream property
+            this.updateParticipant(event.stream.connection.connectionId, { 
+              isAudioMuted: !event.stream.hasAudio 
+            });
+          }
         });
 
         this.session.on('connectionCreated', (event) => {
@@ -116,9 +148,18 @@ export class OpenTokService {
       return;
     }
 
+
     // Use join settings to determine initial audio/video state
     const publishAudio = this.joinSettings.audioEnabled !== false;
     const publishVideo = this.joinSettings.videoEnabled !== false;
+
+    console.log('Publisher settings:', { 
+      userName, 
+      isHost, 
+      publishAudio, 
+      publishVideo,
+      joinSettings: this.joinSettings 
+    });
 
     this.publisher = OT.initPublisher(publisherContainer, {
       name: userName,
@@ -127,11 +168,34 @@ export class OpenTokService {
       insertMode: 'append',
       showControls: false,
       publishAudio: publishAudio,
-      publishVideo: publishVideo
+      publishVideo: publishVideo,
+      audioSource: undefined, // Let OpenTok choose the best audio source
+      videoSource: undefined  // Let OpenTok choose the best video source
     });
 
     if (this.session && this.publisher) {
+      // Add publisher event listeners for debugging audio issues
+      this.publisher.on('streamCreated', (event) => {
+        console.log('Publisher stream created:', event.stream);
+        console.log('Audio tracks:', event.stream.hasAudio);
+        console.log('Video tracks:', event.stream.hasVideo);
+      });
+
+      this.publisher.on('streamDestroyed', (event) => {
+        console.log('Publisher stream destroyed:', event.stream);
+      });
+
+      this.publisher.on('accessAllowed', () => {
+        console.log('Publisher access allowed (microphone/camera permissions granted)');
+      });
+
+      this.publisher.on('accessDenied', (error) => {
+        console.error('Publisher access denied:', error);
+        this.errorSubject.next('Microphone or camera access denied. Please allow permissions and refresh.');
+      });
+
       this.session.publish(this.publisher);
+      console.log('Publisher published to session');
 
       // Set initial muted state based on join settings (opposite of enabled)
       const initialAudioMuted = this.joinSettings.audioEnabled === false;
@@ -148,8 +212,21 @@ export class OpenTokService {
         connectionId: this.session.connection?.connectionId || 'local'
       };
 
+      console.log('Current user created:', {
+        name: userName,
+        isAudioMuted: initialAudioMuted,
+        isVideoMuted: initialVideoMuted,
+        joinSettings: this.joinSettings
+      });
+
       this.participants.push(this.currentUser);
       this.participantsSubject.next([...this.participants]);
+      
+      // Ensure video overlay state is immediately updated
+      setTimeout(() => {
+        console.log('Final currentUser state:', this.currentUser);
+        this.participantsSubject.next([...this.participants]);
+      }, 100);
     }
   }
 
@@ -165,10 +242,33 @@ export class OpenTokService {
       width: '100%',
       height: '100%',
       insertMode: 'append',
-      showControls: false
+      showControls: false,
+      subscribeToAudio: true, // Ensure audio is subscribed
+      subscribeToVideo: true  // Ensure video is subscribed
     });
 
     if (subscriber) {
+      // Add subscriber event listeners for debugging audio issues
+      subscriber.on('audioLevelUpdated', (event) => {
+        console.log(`Audio level for ${stream.connection.connectionId}:`, event.audioLevel);
+      });
+
+      subscriber.on('audioBlocked', (event) => {
+        console.warn(`Audio blocked for ${stream.connection.connectionId}:`, event);
+      });
+
+      subscriber.on('audioUnblocked', (event) => {
+        console.log(`Audio unblocked for ${stream.connection.connectionId}:`, event);
+      });
+
+      subscriber.on('subscribeToAudio', (event) => {
+        console.log(`Subscribed to audio for ${stream.connection.connectionId}:`, event);
+      });
+
+      subscriber.on('unsubscribeFromAudio', (event) => {
+        console.log(`Unsubscribed from audio for ${stream.connection.connectionId}:`, event);
+      });
+
       this.subscribers.set(stream.connection.connectionId, subscriber);
       
       // Check if participant already exists before adding
@@ -183,26 +283,23 @@ export class OpenTokService {
     console.log('Adding participant:', connection);
     const existingParticipant = this.participants.find(p => p.connectionId === connection.connectionId);
     if (!existingParticipant) {
-      // Parse connection data to get participant name
+      // Parse connection data to get participant name and initial states
       let participantName = 'Unknown';
+      let initialAudioMuted = false;
+      let initialVideoMuted = false;
+      let participantIsHost = isHost;
+      
       if (connection.data) {
         try {
           const connectionData = JSON.parse(connection.data);
           participantName = connectionData.name || connectionData.userName || connectionData.participantName || 'Unknown';
+          participantIsHost = connectionData.isHost || connectionData.role === 'host' || isHost;
+          // Get initial mute states from connection data if available
+          initialAudioMuted = connectionData.isAudioMuted || false;
+          initialVideoMuted = connectionData.isVideoMuted || false;
         } catch (error) {
           // If parsing fails, use connection.data as plain text
           participantName = connection.data || 'Unknown';
-        }
-      }
-
-      // Determine if this participant is actually the host based on their data or role
-      let participantIsHost = isHost;
-      if (connection.data) {
-        try {
-          const connectionData = JSON.parse(connection.data);
-          participantIsHost = connectionData.isHost || connectionData.role === 'host' || isHost;
-        } catch (error) {
-          // Keep the passed isHost value if parsing fails
         }
       }
 
@@ -210,8 +307,8 @@ export class OpenTokService {
         id: connection.connectionId,
         name: participantName,
         isHost: participantIsHost,
-        isAudioMuted: false,
-        isVideoMuted: false,
+        isAudioMuted: initialAudioMuted,
+        isVideoMuted: initialVideoMuted,
         isScreenSharing: false,
         hasRaisedHand: false,
         connectionId: connection.connectionId
@@ -219,7 +316,7 @@ export class OpenTokService {
 
       this.participants.push(participant);
       this.participantsSubject.next([...this.participants]);
-      console.log('Added participant:', participant);
+      console.log('Added participant with initial states:', participant);
     }
   }
 
@@ -253,7 +350,17 @@ export class OpenTokService {
         this.updateParticipant(event.from?.connectionId || '', { isAudioMuted: data.muted });
         break;
       case 'signal:muteVideo':
+        console.log(`Received video mute signal from ${event.from?.connectionId}:`, data.muted);
         this.updateParticipant(event.from?.connectionId || '', { isVideoMuted: data.muted });
+        
+        // Also update the video element visibility immediately
+        setTimeout(() => {
+          const subscriberElement = document.getElementById(`subscriber-${event.from?.connectionId}`);
+          if (subscriberElement) {
+            subscriberElement.style.display = data.muted ? 'none' : 'block';
+            console.log(`Updated subscriber element visibility for ${event.from?.connectionId}: ${data.muted ? 'hidden' : 'visible'}`);
+          }
+        }, 50);
         break;
       case 'signal:screenShare':
         this.updateParticipant(event.from?.connectionId || '', { isScreenSharing: data.sharing });
@@ -280,6 +387,8 @@ export class OpenTokService {
           this.sendSignal('participantInfoResponse', {
             name: this.currentUser.name,
             isHost: this.currentUser.isHost,
+            isAudioMuted: this.currentUser.isAudioMuted,
+            isVideoMuted: this.currentUser.isVideoMuted,
             connectionId: this.currentUser.connectionId
           });
         }
@@ -303,21 +412,31 @@ export class OpenTokService {
     const participantIndex = this.participants.findIndex(p => p.connectionId === connectionId);
     if (participantIndex !== -1) {
       // Update participant with the correct name and host status
-      this.participants[participantIndex] = {
+      const updatedParticipant = {
         ...this.participants[participantIndex],
         name: data.name || this.participants[participantIndex].name,
-        isHost: data.isHost || this.participants[participantIndex].isHost
+        isHost: data.isHost !== undefined ? data.isHost : this.participants[participantIndex].isHost,
+        // Update mute states if explicitly provided
+        isAudioMuted: data.isAudioMuted !== undefined ? data.isAudioMuted : this.participants[participantIndex].isAudioMuted,
+        isVideoMuted: data.isVideoMuted !== undefined ? data.isVideoMuted : this.participants[participantIndex].isVideoMuted
       };
+      
+      this.participants[participantIndex] = updatedParticipant;
       this.participantsSubject.next([...this.participants]);
-      console.log('Updated participant info:', this.participants[participantIndex]);
+      console.log('Updated participant info:', updatedParticipant);
+      
+      // Debug log to track video state changes
+      if (data.isVideoMuted !== undefined) {
+        console.log(`Participant ${data.name} video muted state changed to:`, data.isVideoMuted);
+      }
     } else {
-      // If participant doesn't exist, create them
+      // If participant doesn't exist, create them with proper initial state
       const participant: Participant = {
         id: connectionId,
         name: data.name || 'Unknown',
         isHost: data.isHost || false,
-        isAudioMuted: false,
-        isVideoMuted: false,
+        isAudioMuted: data.isAudioMuted !== undefined ? data.isAudioMuted : false,
+        isVideoMuted: data.isVideoMuted !== undefined ? data.isVideoMuted : false, // Use provided state or default to not muted
         isScreenSharing: false,
         hasRaisedHand: false,
         connectionId: connectionId
@@ -371,12 +490,39 @@ export class OpenTokService {
 
   toggleVideo(): void {
     if (this.publisher && this.currentUser) {
-      const isCurrentlyMuted = this.currentUser.isVideoMuted;
-      this.publisher.publishVideo(isCurrentlyMuted);
-
-      this.currentUser.isVideoMuted = !isCurrentlyMuted;
-      this.sendSignal('muteVideo', { muted: !isCurrentlyMuted });
+      const wasVideoMuted = this.currentUser.isVideoMuted;
+      const willEnableVideo = wasVideoMuted; // If currently muted, will enable
+      
+      // Toggle the OpenTok publisher video
+      this.publisher.publishVideo(willEnableVideo);
+      
+      // Update local state
+      this.currentUser.isVideoMuted = !wasVideoMuted;
+      
+      // Send signal to other participants
+      this.sendSignal('muteVideo', { muted: this.currentUser.isVideoMuted });
+      
+      console.log('Video toggled:', { 
+        wasVideoMuted: wasVideoMuted, 
+        nowVideoMuted: this.currentUser.isVideoMuted,
+        publisherVideoEnabled: willEnableVideo,
+        signalSent: { muted: this.currentUser.isVideoMuted }
+      });
+      
+      // Update local video element visibility
+      const publisherElement = document.getElementById('publisher');
+      if (publisherElement) {
+        publisherElement.style.display = this.currentUser.isVideoMuted ? 'none' : 'block';
+      }
+      
+      // Force participants update to ensure overlay visibility changes
       this.participantsSubject.next([...this.participants]);
+      
+      // Additional delayed update to ensure UI changes are reflected
+      setTimeout(() => {
+        console.log('Video toggle follow-up - currentUser state:', this.currentUser);
+        this.participantsSubject.next([...this.participants]);
+      }, 100);
     }
   }
 
@@ -597,4 +743,5 @@ export class OpenTokService {
   getCurrentUser(): Participant | null {
     return this.currentUser;
   }
+
 }

@@ -737,7 +737,7 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
   error: string = '';
 
   isAudioEnabled: boolean = true;
-  isVideoEnabled: boolean = true;
+  isVideoEnabled: boolean = false; // Default video disabled as requested
   hasVideoStream: boolean = false; // Track if we actually have video stream
   hasAudioStream: boolean = false; // Track if we actually have audio stream
 
@@ -766,9 +766,9 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
     this.originSiteUrl = this.configService.getConfig()?.originSiteUrl ?? '';
 
     // Set up message listener immediately
-    // window.addEventListener('message', this.receiveMessage.bind(this));
+    window.addEventListener('message', this.receiveMessage.bind(this));
 
-    // // Send ready message both on init and after window load
+    // Send ready message both on init and after window load
     // this.sendReadyMessage();
     // window.onload = () => this.sendReadyMessage();
 
@@ -1194,6 +1194,7 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
     }
+    this.participantName="";
     window.removeEventListener(
       'message',
       this.receiveMessage.bind(this)
