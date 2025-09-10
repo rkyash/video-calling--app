@@ -212,11 +212,13 @@
     <div class="meeting-controls" [class.hidden]="isFullscreen">
         <!-- Recording Indicator (Left Side) -->
         <div class="recording-info">
-            <div class="recording-indicator" *ngIf="isRecording">
+            @if(isRecording){
+            <div class="recording-indicator" >
                 <div class="recording-dot"></div>
                 <span class="recording-text">REC</span>
                 <span class="recording-timer">{{ recordingDuration }}</span>
             </div>
+            }
         </div>
 
         <!-- Center Control Groups -->
@@ -244,7 +246,9 @@
                 <!-- Chat -->
                 <button class="control-button" [class.active]="isChatOpen" (click)="toggleChat()" title="Toggle Chat">
                     <i class="fas fa-comments"></i>
-                    <span class="notification-badge" *ngIf="unreadMessages > 0">{{ unreadMessages }}</span>
+                    @if (unreadMessages > 0){
+                    <span class="notification-badge"> 0">{{ unreadMessages }}</span>
+                    }
                 </button>
 
                 <!-- End Meeting -->
@@ -256,10 +260,11 @@
             <!-- Secondary Controls (Hidden on Mobile, Shown in More Menu) -->
             <div class="secondary-controls">
                 <!-- Screenshot -->
+                @if (currentUser?.isHost){
                 <button class="control-button" (click)="takeScreenshot()" title="Take Screenshot">
                     <i class="fas fa-camera"></i>
                 </button>
-
+                }
                 <!-- Raise Hand -->
                 <button class="control-button" [class.active]="currentUser?.hasRaisedHand" (click)="toggleRaiseHand()"
                     title="Raise Hand">
@@ -274,11 +279,12 @@
                 </button>
 
                 <!-- Recording -->
+                @if (currentUser?.isHost){
                 <button class="control-button" [class.active]="isScreenRecording" (click)="toggleScreenRecording()"
-                    title="Toggle Screen Recording" *ngIf="currentUser?.isHost">
+                    title="Toggle Screen Recording">
                     <i class="fas fa-record-vinyl"></i>
                 </button>
-
+                }
                 <!-- Settings -->
                 <button class="control-button" (click)="openSettings()" title="Settings">
                     <i class="fas fa-cog"></i>

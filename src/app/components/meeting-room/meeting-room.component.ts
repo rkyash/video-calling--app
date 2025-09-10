@@ -316,9 +316,10 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
   async takeScreenshot(): Promise<void> {
     try {
-      const videoGrid = document.querySelector('.video-grid') as HTMLElement;
-      const screenshot = await this.screenshotService.captureVideoCall(videoGrid);
-      await this.screenshotService.shareScreenshot(screenshot, 'Meeting Screenshot');
+      // const videoGrid = document.querySelector('.video-grid') as HTMLElement;
+      // const screenshot = await this.screenshotService.captureVideoCall(videoGrid);
+      // await this.screenshotService.shareScreenshot(screenshot, 'Meeting Screenshot');
+      await this.screenshotService.takeScreenshot();
     } catch (error) {
       console.error('Failed to take screenshot:', error);
     }
