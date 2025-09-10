@@ -434,7 +434,7 @@ export class OpenTokService {
 
   disconnect(): void {
     if (this.session) {
-      this.session.disconnect();
+      this.session.disconnect();     
     }
     this.cleanup();
   }

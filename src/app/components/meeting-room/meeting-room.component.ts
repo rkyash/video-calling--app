@@ -1513,7 +1513,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
     const meeting = this.meetingService.getCurrentMeeting();
 
-    this.isHost = meeting ? meeting.isHost:false;
+    this.isHost = meeting ? meeting.isHost : false;
 
     // Get join settings from query parameters
     const joinAudioEnabled = queryParams['joinAudio'] === 'true';
@@ -1532,6 +1532,10 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.subscriptions.forEach(sub => sub.unsubscribe());
     this.stopRecordingTimer();
+
+    // Call disconnect API and clear storage when component is destroyed
+    this.meetingService.disconnectParticipant();
+
     this.openTokService.disconnect();
     document.removeEventListener('click', this.onDocumentClick.bind(this));
   }
@@ -1546,7 +1550,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
             if (joinData) {
               // Get the legacy meeting object for OpenTok initialization
               this.currentMeeting = this.meetingService.getCurrentMeeting();
-              this.isHost = this.currentMeeting ? this.currentMeeting.isHost:false;
+              this.isHost = this.currentMeeting ? this.currentMeeting.isHost : false;
               if (this.currentMeeting) {
                 // Create join settings object
                 const joinSettings = {
@@ -1602,7 +1606,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
           participantName,
           this.isHost,
           joinSettings
-         
+
         );
         this.isConnecting = false;
       }
@@ -1657,6 +1661,10 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       if (error && error.includes('Host has left')) {
         // Host has left, redirect all participants to home
         alert('Host has left the meeting. The meeting has ended.');
+
+        // Call disconnect API and clear storage
+        this.meetingService.disconnectParticipant();
+
         this.router.navigate(['/']);
       }
     });
@@ -1841,18 +1849,28 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     await this.initializeMeeting(participantName, joinAudioEnabled, joinVideoEnabled);
   }
 
-  leaveMeeting(): void {
+  async leaveMeeting(): Promise<void> {
     const confirmLeave = confirm('Are you sure you want to leave the meeting?');
     if (confirmLeave) {
-      if (this.currentUser?.isHost) {
-        // Host is leaving - this will end the meeting for all participants
-        this.meetingService.hostLeft(this.currentUser.name);
-      } else {
-        // Regular participant leaving
-        this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
-      }
+      // if (this.currentUser?.isHost) {
+      //   // Host is leaving - this will end the meeting for all participants
+      //   this.meetingService.hostLeft(this.currentUser.name);
+      // } else {
+      //   // Regular participant leaving
+      //   this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
+      // }
+
+      // Call disconnect API and clear storage
+      await this.meetingService.disconnectParticipant();
+      this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
+
+      // Disconnect from OpenTok session
       this.openTokService.disconnect();
-      this.router.navigate(['/']);
+
+      // Navigate to home
+      // this.router.navigate(['/']);
+
+      window.close()
     }
   }
 

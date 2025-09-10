@@ -1,12 +1,12 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, throwError } from 'rxjs';
-import { 
-  Meeting, 
-  ChatMessage, 
-  CreateMeetingRequest, 
-  MeetingData, 
-  JoinMeetingRequest, 
-  JoinMeetingData, 
+import {
+  Meeting,
+  ChatMessage,
+  CreateMeetingRequest,
+  MeetingData,
+  JoinMeetingRequest,
+  JoinMeetingData,
   ParticipantRole,
   RecordingRequest
 } from '../models/meeting.model';
@@ -37,7 +37,7 @@ export class MeetingService {
   constructor(
     private apiService: ApiService,
     private toastService: ToastService
-  ) {}
+  ) { }
 
   createMeeting(hostName: string, meetingName: string, scheduledAt?: string): Observable<MeetingData | null> {
     const meetingRequest: CreateMeetingRequest = {
@@ -58,7 +58,7 @@ export class MeetingService {
             const meetingData = ApiResponseHandler.extractData(response);
             if (meetingData) {
               this.currentMeetingDataSubject.next(meetingData);
-              
+
               // Create legacy Meeting object for backward compatibility
               const legacyMeeting: Meeting = {
                 id: meetingData.roomCode.toString(),
@@ -71,10 +71,10 @@ export class MeetingService {
                 createdAt: new Date(meetingData.createdAt),
                 isRecording: meetingData.isRecordingEnabled
               };
-              
+
               this.currentMeetingSubject.next(legacyMeeting);
               this.addSystemMessage(`${hostName} created the meeting "${meetingData.title}"`);
-              
+
               observer.next(meetingData);
               observer.complete();
             } else {
@@ -104,7 +104,7 @@ export class MeetingService {
   }
 
   joinMeeting(roomCode: string, participantName: string, isGuest: boolean = false): Observable<JoinMeetingData | null> {
-    const joinRequest: JoinMeetingRequest = isGuest 
+    const joinRequest: JoinMeetingRequest = isGuest
       ? { guestName: participantName }
       : { userName: participantName };
 
@@ -115,23 +115,23 @@ export class MeetingService {
             const joinData = ApiResponseHandler.extractData(response);
             if (joinData) {
               this.currentJoinDataSubject.next(joinData);
-              
+
               // Create legacy Meeting object for backward compatibility
               const legacyMeeting: Meeting = {
                 id: roomCode,
                 name: `Meeting ${joinData.meetingId}`,
                 hostId: joinData.userId?.toString() || '',
-                isHost:joinData.role === this.participantRole.Host, // Assuming role 0 is Host
+                isHost: joinData.role === this.participantRole.Host, // Assuming role 0 is Host
                 sessionId: joinData.sessionId || this.generateSessionId(),
                 token: joinData.token || this.generateToken(),
                 apiKey: joinData.apiKey || this.getApiKey(),
                 createdAt: new Date(joinData.joinedAt),
                 isRecording: false
               };
-              
+
               this.currentMeetingSubject.next(legacyMeeting);
               this.addSystemMessage(`${participantName} joined the meeting`);
-              
+
               observer.next(joinData);
               observer.complete();
             } else {
@@ -172,7 +172,7 @@ export class MeetingService {
       createdAt: new Date(),
       isRecording: false
     };
-    
+
     return mockMeeting;
   }
 
@@ -248,7 +248,7 @@ export class MeetingService {
     const currentMeeting = this.currentMeetingSubject.value;
     if (currentMeeting) {
       const recordingRequest: RecordingRequest = {
-        sessionId: currentMeeting.sessionId      
+        sessionId: currentMeeting.sessionId
       };
 
       this.apiService.startRecording(currentMeeting.id, recordingRequest).subscribe({
@@ -268,7 +268,7 @@ export class MeetingService {
           console.error('Failed to start recording:', error);
           this.toastService.error('Recording Failed', 'Failed to start recording - please reconnect');
           this.addSystemMessage('Failed to start recording - please reconnect if needed');
-          
+
           // Show confirmation dialog to reconnect
           this.showRecordingFailureDialog();
         }
@@ -323,6 +323,50 @@ export class MeetingService {
     }).catch(err => {
       console.error('Failed to copy meeting link', err);
     });
+  }
+
+  disconnectParticipant(): void {
+    const currentMeeting = this.currentMeetingSubject.value;
+    if (currentMeeting) {
+      // Call the disconnect API
+      this.apiService.disconnectParticipant(currentMeeting.id).subscribe({
+        next: (response) => {
+          if (response.success) {
+            console.log('Participant successfully disconnected from server');
+            this.toastService.success('Participant successfully disconnected from server ' + response.message || '');
+          } else {
+            console.warn('Server disconnect response:', response);
+            this.toastService.error('Server disconnect response:' + response.message || '');
+          }
+        },
+        error: (error) => {
+          console.error('Failed to disconnect from server:', error);
+          this.toastService.error('Failed to disconnect from server:' + error?.message);
+          // Continue with local cleanup even if API call fails
+          this.performLocalCleanup();
+        },
+        complete: () => {
+          // Always perform local cleanup regardless of API response
+          this.performLocalCleanup();
+        }
+      });
+    } else {
+      // No current meeting, just perform local cleanup
+      this.performLocalCleanup();
+    }
+  }
+
+  private performLocalCleanup(): void {
+    // Clear all browser localStorage for this site
+    localStorage.clear();
+
+    // Clear sessionStorage as well
+    sessionStorage.clear();
+
+    // Reset meeting service state
+    this.endMeeting();
+
+    console.log('Local storage and meeting state cleared');
   }
 
   private showRecordingFailureDialog(): void {

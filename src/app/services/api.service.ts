@@ -53,9 +53,9 @@ export class ApiService {
     return this.http.post<JoinMeetingResponse>(url, data);
   }
 
-  disconnectParticipant(roomCode: string): Observable<ApiResponse> {
+  disconnectParticipant(roomCode: string): Observable<ApiResponse<any>> {
     let url = `${this.apiUrl}/meetings/${roomCode}/disconnect/`;
-    return this.http.post<ApiResponse>(url,{});
+    return this.http.post<ApiResponse<any>>(url,{});
   }
 
   // private makeRequest<T>(
