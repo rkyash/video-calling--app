@@ -125,7 +125,5 @@ export enum ParticipantRole {
 }
 
 export interface RecordingRequest {
-  recordingName?: string;
-  recordingFormat?: string;
-  autoStop?: boolean;
+  sessionId?: string;
 }

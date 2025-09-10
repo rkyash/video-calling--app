@@ -248,14 +248,12 @@ export class MeetingService {
     const currentMeeting = this.currentMeetingSubject.value;
     if (currentMeeting) {
       const recordingRequest: RecordingRequest = {
-        recordingName: `${currentMeeting.name}_${new Date().toISOString()}`,
-        recordingFormat: 'mp4',
-        autoStop: false
+        sessionId: currentMeeting.sessionId      
       };
 
       this.apiService.startRecording(currentMeeting.id, recordingRequest).subscribe({
         next: (response) => {
-          if (response?.data) {
+          if (response.success) {
             currentMeeting.isRecording = true;
             this.currentMeetingSubject.next(currentMeeting);
             this.isRecordingSubject.next(true);
