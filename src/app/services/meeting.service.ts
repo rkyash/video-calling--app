@@ -325,34 +325,40 @@ export class MeetingService {
     });
   }
 
-  disconnectParticipant(): void {
+  disconnectParticipant(): Promise<any> {
     const currentMeeting = this.currentMeetingSubject.value;
     if (currentMeeting) {
-      // Call the disconnect API
-      this.apiService.disconnectParticipant(currentMeeting.id).subscribe({
-        next: (response) => {
-          if (response.success) {
-            console.log('Participant successfully disconnected from server');
-            this.toastService.success('Participant successfully disconnected from server ' + response.message || '');
-          } else {
-            console.warn('Server disconnect response:', response);
-            this.toastService.error('Server disconnect response:' + response.message || '');
+      // Call the disconnect API and return Promise
+      return new Promise((resolve, reject) => {
+        this.apiService.disconnectParticipant(currentMeeting.id).subscribe({
+          next: (response) => {
+            if (response.success) {
+              console.log('Participant successfully disconnected from server');
+              this.toastService.success('Participant successfully disconnected from server ' + response.message || '');
+              resolve(response);
+            } else {
+              console.warn('Server disconnect response:', response);
+              this.toastService.error('Server disconnect response:' + response.message || '');
+              resolve(response); // Still resolve even if not success
+            }
+          },
+          error: (error) => {
+            console.error('Failed to disconnect from server:', error);
+            this.toastService.error('Failed to disconnect from server:' + error?.message);
+            // Continue with local cleanup even if API call fails
+            this.performLocalCleanup();
+            reject(error);
+          },
+          complete: () => {
+            // Always perform local cleanup regardless of API response
+            this.performLocalCleanup();
           }
-        },
-        error: (error) => {
-          console.error('Failed to disconnect from server:', error);
-          this.toastService.error('Failed to disconnect from server:' + error?.message);
-          // Continue with local cleanup even if API call fails
-          this.performLocalCleanup();
-        },
-        complete: () => {
-          // Always perform local cleanup regardless of API response
-          this.performLocalCleanup();
-        }
+        });
       });
     } else {
       // No current meeting, just perform local cleanup
       this.performLocalCleanup();
+      return Promise.resolve(null);
     }
   }
 

@@ -40,6 +40,12 @@ import { AuthService } from 'src/app/services/auth.service';
 
                 <div class="join-section">
                   <div class="join-input-group">
+                       <input 
+                      type="text" 
+                      [(ngModel)]="token"
+                      placeholder="Enter testing token"
+                      class="join-input"                                            
+                    >                   
                     <input 
                       type="text" 
                       [(ngModel)]="meetingId"
@@ -378,7 +384,7 @@ export class HomeComponent implements OnInit, OnDestroy {
   meetingId: string = '';
   meetingCode: string = '';
   originSiteUrl: string = '';
-  token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiRHIgTmVldGEgQml5YW5pIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiQXNzZXNzb3IiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9oYXNoIjoiMDNhODYxNWItZDBmOS00OGYyLTk1YmUtNzVjOTczMTJjMTc5IiwiVXNlcklkIjoiNzA1NyIsIkd1SWQiOiIzZDliZGY2Y2VmYWI0OTYzOGVkZjg2Y2YxMzQ3YTFlZSIsInJvbGVpZCI6IjUiLCJyb2xlbmFtZSI6IkFzc2Vzc29yIiwiZmlyc3RuYW1lIjoiRHIgTmVldGEiLCJsYXN0bmFtZSI6IkJpeWFuaSIsInVzcl9lbWFpbCI6Im5lZXRhYml5YW5pLmRodWxlQGdtYWlsLmNvbSIsIm1vYmlsZSI6Ijk4MjM0NDIxNDAiLCJjcmVhdGlvbmRhdGUiOiIiLCJpc2FjdGl2ZSI6InRydWUiLCJhc3JfaWQiOiI3MTUiLCJob3NwX2lzYWN0aXZlIjoiZmFsc2UiLCJob3NwX2NhdGdfdmFsIjoiMCIsImhvc3BfZWR0bl9ubyI6IjAiLCJob3NwX2VkdG5ub19kciI6IjAiLCJob3NwX2VkdG5ub19zYXQiOiIwIiwiYXNtdGNhdGdfZWR0bm5vIjoiMCIsImhvc3BfaXNlY2hvIjoiZmFsc2UiLCJob3NwX2VjaG9fc3VyZ2VyeXMiOiIwIiwiYWxsY3RkX3ByZ21zIjoiIiwiZXhwIjoxNzU3NTA4MTMzLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OioiLCJhdWQiOiJodHRwOi8vbG9jYWxob3N0OioifQ.2eZ-rd8sK64-UV5yMMvCQAyVKERAAgQdU1tS3K_ww6M";
+  token = "";
   private messageCount = 0;
   private maxMessages = 1000;
 
@@ -391,15 +397,18 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   }
   ngOnInit(): void {
-    const authPayload = { accessToken: this.token };
-    this.authService.setAuthToken(authPayload);    
 
-    this.authService.loadUserProfile();
+
 
   }
 
   joinMeeting(): void {
     if (this.meetingId?.trim()) {
+      const authPayload = { accessToken: this.token };
+      this.authService.setAuthToken(authPayload);
+
+      this.authService.loadUserProfile();
+
       let meetingId = this.meetingId.trim();
 
       if (meetingId.includes('/join/')) {

@@ -1,8 +1,13 @@
 import { Routes } from '@angular/router';
 
 export const routes: Routes = [
+
   {
     path: '',
+    loadComponent: () => import('./components/join-meeting/join-meeting.component').then(m => m.JoinMeetingComponent)
+  },
+  {
+    path: 'home',
     loadComponent: () => import('./components/home/home.component').then(m => m.HomeComponent)
   },
   {

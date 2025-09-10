@@ -1534,7 +1534,9 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     this.stopRecordingTimer();
 
     // Call disconnect API and clear storage when component is destroyed
-    this.meetingService.disconnectParticipant();
+    this.meetingService.disconnectParticipant().catch(error => {
+      console.error('Error during component destroy disconnect:', error);
+    });
 
     this.openTokService.disconnect();
     document.removeEventListener('click', this.onDocumentClick.bind(this));
@@ -1657,13 +1659,17 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     });
 
     // Subscribe to errors (including host disconnect)
-    const errorSub = this.openTokService.error$.subscribe(error => {
+    const errorSub = this.openTokService.error$.subscribe(async (error) => {
       if (error && error.includes('Host has left')) {
         // Host has left, redirect all participants to home
         alert('Host has left the meeting. The meeting has ended.');
 
-        // Call disconnect API and clear storage
-        this.meetingService.disconnectParticipant();
+        try {
+          // Call disconnect API and clear storage
+          await this.meetingService.disconnectParticipant();
+        } catch (disconnectError) {
+          console.error('Error during host disconnect cleanup:', disconnectError);
+        }
 
         this.router.navigate(['/']);
       }
@@ -1852,25 +1858,26 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   async leaveMeeting(): Promise<void> {
     const confirmLeave = confirm('Are you sure you want to leave the meeting?');
     if (confirmLeave) {
-      // if (this.currentUser?.isHost) {
-      //   // Host is leaving - this will end the meeting for all participants
-      //   this.meetingService.hostLeft(this.currentUser.name);
-      // } else {
-      //   // Regular participant leaving
-      //   this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
-      // }
-
-      // Call disconnect API and clear storage
-      await this.meetingService.disconnectParticipant();
-      this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
-
-      // Disconnect from OpenTok session
-      this.openTokService.disconnect();
-
-      // Navigate to home
-      // this.router.navigate(['/']);
-
-      window.close()
+      try {
+        // Call disconnect API and wait for response
+        const response = await this.meetingService.disconnectParticipant();
+        
+        // After getting API response, call participantLeft
+        this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
+        
+        // Disconnect from OpenTok session
+        this.openTokService.disconnect();
+        
+        // Close the window after successful disconnect
+        this.router.navigate(['/']);
+        
+      } catch (error) {
+        console.error('Error during disconnect:', error);
+        // Even if API call fails, still perform local cleanup and close
+        this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
+        this.openTokService.disconnect();
+       this.router.navigate(['/']);
+      }
     }
   }
 

@@ -14,10 +14,10 @@ import { AuthService } from 'src/app/services/auth.service';
     <div class="join-meeting-container">
       <header class="header">
         <div class="container">
-          <button class="btn btn-outline" routerLink="/">
+          <!-- <button class="btn btn-outline" routerLink="/">
             <i class="fas fa-arrow-left"></i>
             Back to Home
-          </button>
+          </button> -->
           <div class="logo">
             <h1><i class="fas fa-video"></i> VideoMeet</h1>
           </div>
@@ -118,11 +118,13 @@ import { AuthService } from 'src/app/services/auth.service';
                       required
                       placeholder="Enter your full name"
                       class="form-input"
-                      [disabled]="isJoining"
+                      [disabled]="true"
                     >
+                    <!-- [disabled]="isJoining" -->
                   </div>
 
-                  <div class="form-group" *ngIf="!meetingId">
+                  <!-- @if (!meetingId){
+                  <div class="form-group" >
                     <label for="meetingIdInput">Meeting ID *</label>
                     <input
                       type="text"
@@ -135,6 +137,7 @@ import { AuthService } from 'src/app/services/auth.service';
                       [disabled]="isJoining"
                     >
                   </div>
+                    } -->
 
                   <div class="join-options">
                     <label class="checkbox-label">
