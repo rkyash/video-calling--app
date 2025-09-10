@@ -7,7 +7,8 @@ import {
   CreateMeetingRequest,
   CreateMeetingResponse,
   JoinMeetingRequest,
-  JoinMeetingResponse
+  JoinMeetingResponse,
+  RecordingRequest
 } from '../models/meeting.model';
 import { ApiResponse } from '../models/api-response.model';
 
@@ -47,9 +48,9 @@ export class ApiService {
     return this.http.post<JoinMeetingResponse>(url, joinData);
   }
 
-  startRecording(roomCode: string, joinData: JoinMeetingRequest = {}): Observable<JoinMeetingResponse> {
-    let url = `${this.apiUrl}/${roomCode}/recordings/start`;
-    return this.http.post<JoinMeetingResponse>(url, joinData);
+  startRecording(roomCode: string, data: RecordingRequest): Observable<JoinMeetingResponse> {
+    let url = `${this.apiUrl}/meetings/${roomCode}/recordings/start`;
+    return this.http.post<JoinMeetingResponse>(url, data);
   }
 
   disconnectParticipant(roomCode: string): Observable<ApiResponse> {

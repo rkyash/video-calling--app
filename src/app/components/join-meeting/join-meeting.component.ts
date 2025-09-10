@@ -763,11 +763,11 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
     this.originSiteUrl = this.configService.getConfig()?.originSiteUrl ?? '';
 
     // Set up message listener immediately
-    window.addEventListener('message', this.receiveMessage.bind(this));
+    // window.addEventListener('message', this.receiveMessage.bind(this));
 
-    // Send ready message both on init and after window load
-    this.sendReadyMessage();
-    window.onload = () => this.sendReadyMessage();
+    // // Send ready message both on init and after window load
+    // this.sendReadyMessage();
+    // window.onload = () => this.sendReadyMessage();
 
     var currentUser = this.authService.currentUser();
 

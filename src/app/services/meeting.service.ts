@@ -7,7 +7,8 @@ import {
   MeetingData, 
   JoinMeetingRequest, 
   JoinMeetingData, 
-  ParticipantRole
+  ParticipantRole,
+  RecordingRequest
 } from '../models/meeting.model';
 import { ApiResponseHandler } from '../models/api-response.model';
 import { ApiService } from './api.service';
@@ -32,6 +33,7 @@ export class MeetingService {
 
   private chatMessages: ChatMessage[] = [];
 
+  private participantRole = ParticipantRole; // Expose enum to template if needed
   constructor(
     private apiService: ApiService,
     private toastService: ToastService
@@ -119,7 +121,7 @@ export class MeetingService {
                 id: roomCode,
                 name: `Meeting ${joinData.meetingId}`,
                 hostId: joinData.userId?.toString() || '',
-                isHost:joinData.role === ParticipantRole.Host, // Assuming role 0 is Host
+                isHost:joinData.role === this.participantRole.Host, // Assuming role 0 is Host
                 sessionId: joinData.sessionId || this.generateSessionId(),
                 token: joinData.token || this.generateToken(),
                 apiKey: joinData.apiKey || this.getApiKey(),
@@ -245,10 +247,34 @@ export class MeetingService {
   startRecording(): void {
     const currentMeeting = this.currentMeetingSubject.value;
     if (currentMeeting) {
-      currentMeeting.isRecording = true;
-      this.currentMeetingSubject.next(currentMeeting);
-      this.isRecordingSubject.next(true);
-      this.addSystemMessage('Recording started');
+      const recordingRequest: RecordingRequest = {
+        recordingName: `${currentMeeting.name}_${new Date().toISOString()}`,
+        recordingFormat: 'mp4',
+        autoStop: false
+      };
+
+      this.apiService.startRecording(currentMeeting.id, recordingRequest).subscribe({
+        next: (response) => {
+          if (response?.data) {
+            currentMeeting.isRecording = true;
+            this.currentMeetingSubject.next(currentMeeting);
+            this.isRecordingSubject.next(true);
+            this.addSystemMessage('Recording started');
+            this.toastService.success('Recording Started', 'Meeting recording has started successfully');
+          } else {
+            this.toastService.error('Recording Failed', 'Failed to start recording');
+            this.addSystemMessage('Failed to start recording');
+          }
+        },
+        error: (error) => {
+          console.error('Failed to start recording:', error);
+          this.toastService.error('Recording Failed', 'Failed to start recording - please reconnect');
+          this.addSystemMessage('Failed to start recording - please reconnect if needed');
+          
+          // Show confirmation dialog to reconnect
+          this.showRecordingFailureDialog();
+        }
+      });
     }
   }
 
@@ -299,5 +325,18 @@ export class MeetingService {
     }).catch(err => {
       console.error('Failed to copy meeting link', err);
     });
+  }
+
+  private showRecordingFailureDialog(): void {
+    const shouldReconnect = confirm(
+      'Recording failed to start. This might be due to a connection issue.\n\n' +
+      'Would you like to try reconnecting to start recording again?\n\n' +
+      'Click OK to refresh and reconnect, or Cancel to continue without recording.'
+    );
+
+    if (shouldReconnect) {
+      // Reload the page to reconnect
+      window.location.reload();
+    }
   }
 }

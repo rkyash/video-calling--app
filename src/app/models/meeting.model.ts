@@ -123,3 +123,9 @@ export enum ParticipantRole {
   Participant = 2,
   Guest = 3
 }
+
+export interface RecordingRequest {
+  recordingName?: string;
+  recordingFormat?: string;
+  autoStop?: boolean;
+}

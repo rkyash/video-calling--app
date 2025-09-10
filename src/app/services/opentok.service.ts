@@ -44,6 +44,14 @@ export class OpenTokService {
         this.session.on('sessionConnected', () => {
           this.connectionStatusSubject.next('connected');
           this.publishStream(userName,isHost);
+          
+          // Auto-start recording when session connects and user is host
+          if (isHost && this.meetingService) {
+            setTimeout(() => {
+              this.meetingService.startRecording();
+            }, 2000); // Wait 2 seconds for session to stabilize
+          }
+          
           resolve();
         });
 
