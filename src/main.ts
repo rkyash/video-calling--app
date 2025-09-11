@@ -9,16 +9,17 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { authInterceptorFn } from './app/interceptors/auth.interceptor';
 import { ConfigService } from './app/services/config.service';
-import { inject } from '@angular/core';
 
-async function initializeApp() {
-  const configService = inject(ConfigService);
-  try {
-    await configService.loadConfig();
-  } catch (error) {
-    console.error('Failed to load app configuration:', error);
-    // Return resolved to prevent app from failing to start
-  }
+function initializeAppFactory(configService: ConfigService) {
+  return async () => {
+    try {
+      await configService.loadConfig();
+      console.log('App configuration loaded successfully');
+    } catch (error) {
+      console.error('Failed to load app configuration:', error);
+      // Continue app startup even if config fails
+    }
+  };
 }
 
 bootstrapApplication(AppComponent, {
@@ -27,9 +28,11 @@ bootstrapApplication(AppComponent, {
     provideAnimations(),
     provideHttpClient(withInterceptors([authInterceptorFn])),
     importProvidersFrom(CommonModule, FormsModule, ReactiveFormsModule),
+    ConfigService,
     {
       provide: 'APP_INITIALIZER',
-      useFactory: initializeApp,
+      useFactory: initializeAppFactory,
+      deps: [ConfigService],
       multi: true
     }
   ]

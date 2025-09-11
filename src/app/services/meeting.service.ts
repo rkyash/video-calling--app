@@ -300,7 +300,7 @@ export class MeetingService {
     this.currentMeetingSubject.next(null);
     this.chatMessages = [];
     this.chatMessagesSubject.next([]);
-    this.isRecordingSubject.next(false);
+    this.isRecordingSubject.next(false);    
   }
 
   getCurrentMeeting(): Meeting | null {

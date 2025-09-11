@@ -1,0 +1,37 @@
+@if (isOpen) {
+<div class="modal-overlay" (click)="onOverlayClick()">
+    <div class="modal-content confirmation-modal" (click)="onModalClick($event)">
+        <div class="modal-header">
+            <h3>
+                @if (config.icon) {
+                <i [class]="config.icon"></i>
+                }
+                {{ config.title }}
+            </h3>
+        </div>
+        
+        <div class="modal-body">
+            <p>{{ config.message }}</p>
+            @if (config.warningText) {
+            <p class="warning-text">{{ config.warningText }}</p>
+            }
+        </div>
+        
+        <div class="modal-footer">
+            <button class="btn btn-secondary" (click)="onCancel()">
+                <i class="fas fa-times"></i>
+                {{ config.cancelText }}
+            </button>
+            <button 
+                class="btn"
+                [ngClass]="'btn-' + (config.confirmButtonType || 'primary')"
+                (click)="onConfirm()">
+                @if (config.icon) {
+                <i [class]="config.icon"></i>
+                }
+                {{ config.confirmText }}
+            </button>
+        </div>
+    </div>
+</div>
+}

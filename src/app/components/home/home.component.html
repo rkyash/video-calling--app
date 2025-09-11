@@ -1,0 +1,139 @@
+ <div class="home-container">
+      <header class="header">
+        <div class="container">
+          <div class="logo">
+            <h1><i class="fas fa-video"></i> VideoMeet</h1>
+          </div>
+        </div>
+      </header>
+
+      <main class="main">
+        <div class="container">
+          <div class="hero-section">
+            <div class="hero-content">
+              <h2 class="hero-title">Professional Video Conferencing Made Simple</h2>
+              <p class="hero-subtitle">
+                Connect with your team, clients, and colleagues with crystal-clear video calls, 
+                screen sharing, and collaborative features.
+              </p>
+
+              <div class="action-buttons">
+                <button 
+                  class="btn btn-primary btn-large"
+                  routerLink="/create"
+                >
+                  <i class="fas fa-plus"></i>
+                  Start New Meeting
+                </button>
+
+                <div class="join-section">
+                  <div class="join-input-group">
+                       <input 
+                      type="text" 
+                      [(ngModel)]="token"
+                      placeholder="Enter testing token"
+                      class="join-input"                                            
+                    >                   
+                    <input 
+                      type="text" 
+                      [(ngModel)]="meetingId"
+                      placeholder="Enter meeting ID or link"
+                      class="join-input"
+                      (keyup.enter)="joinMeeting()"
+                    >
+                    <button 
+                      class="btn btn-outline"
+                      (click)="joinMeeting()"
+                      [disabled]="!meetingId.trim()"
+                    >
+                      <i class="fas fa-sign-in-alt"></i>
+                      Join
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="hero-image">
+              <div class="video-preview">
+                <div class="mock-video-grid">
+                  <div class="mock-video participant-1">
+                    <div class="participant-info">
+                      <span>John Doe</span>
+                    </div>
+                  </div>
+                  <div class="mock-video participant-2">
+                    <div class="participant-info">
+                      <span>Jane Smith</span>
+                    </div>
+                  </div>
+                  <div class="mock-video participant-3">
+                    <div class="participant-info">
+                      <span>Mike Johnson</span>
+                    </div>
+                  </div>
+                  <div class="mock-video participant-4">
+                    <div class="participant-info">
+                      <span>Sarah Wilson</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="features-section">
+            <h3 class="features-title">Why Choose VideoMeet?</h3>
+            <div class="features-grid">
+              <div class="feature-card">
+                <div class="feature-icon">
+                  <i class="fas fa-video"></i>
+                </div>
+                <h4>HD Video & Audio</h4>
+                <p>Crystal-clear video calls with professional-grade audio quality for seamless communication.</p>
+              </div>
+
+              <div class="feature-card">
+                <div class="feature-icon">
+                  <i class="fas fa-desktop"></i>
+                </div>
+                <h4>Screen Sharing</h4>
+                <p>Share your screen, presentations, or specific applications with just one click.</p>
+              </div>
+
+              <div class="feature-card">
+                <div class="feature-icon">
+                  <i class="fas fa-comments"></i>
+                </div>
+                <h4>Real-time Chat</h4>
+                <p>Stay connected with in-meeting chat for quick messages and file sharing.</p>
+              </div>
+
+              <div class="feature-card">
+                <div class="feature-icon">
+                  <i class="fas fa-record-vinyl"></i>
+                </div>
+                <h4>Meeting Recording</h4>
+                <p>Record important meetings and share them with team members who couldn't attend.</p>
+              </div>
+
+              <div class="feature-card">
+                <div class="feature-icon">
+                  <i class="fas fa-mobile-alt"></i>
+                </div>
+                <h4>Mobile Responsive</h4>
+                <p>Join meetings from any device - desktop, tablet, or smartphone with full functionality.</p>
+              </div>
+
+              <div class="feature-card">
+                <div class="feature-icon">
+                  <i class="fas fa-shield-alt"></i>
+                </div>
+                <h4>Secure & Private</h4>
+                <p>End-to-end encryption and advanced security measures to protect your conversations.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>

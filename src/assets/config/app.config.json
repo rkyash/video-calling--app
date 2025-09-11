@@ -5,13 +5,13 @@
     "originSiteUrl": "http://localhost:4200"   
   },
   "production": {
-    "apiUrl": "https://api.yourdomain.com/api",
+    "apiUrl": "https://hcoaccreditationtest.nabh.co:6002/api",
     "version": "1.0.0", 
-    "originSiteUrl": "https://yourdomain.com"    
+    "originSiteUrl": "https://hcoaccreditationtest.nabh.co"    
   },
   "staging": {
-    "apiUrl": "https://staging-api.yourdomain.com/api",
+    "apiUrl": "https://hcoaccreditation.nabh.co:6002/api",
     "version": "1.0.0",
-    "originSiteUrl": "https://staging.yourdomain.com"    
+    "originSiteUrl": "https://hcoaccreditation.nabh.co/"    
   }
 }
