@@ -1,0 +1,235 @@
+<div class="join-meeting-container">
+      <header class="header">
+        <div class="container">
+          <!-- <button class="btn btn-outline" routerLink="/">
+            <i class="fas fa-arrow-left"></i>
+            Back to Home
+          </button> -->
+          <div class="logo">
+            <h1><i class="fas fa-video"></i> VideoMeet</h1>
+          </div>
+        </div>
+      </header>
+
+      <main class="main">
+        <div class="container">
+          <div class="join-form-container">
+            <div class="preview-section">
+              <div class="video-preview">
+                <video 
+                  #localVideo 
+                  autoplay 
+                  muted 
+                  playsinline
+                  class="preview-video"
+                  [class.hidden]="!hasVideoStream"
+                ></video>
+                <div class="video-placeholder" [class.hidden]="hasVideoStream">
+                  <div class="avatar">
+                    <i class="fas fa-user"></i>
+                  </div>
+                  <p>{{ isVideoEnabled ? 'Starting camera...' : 'Camera is off' }}</p>
+                </div>
+
+                <div class="preview-controls">
+                  <button 
+                    class="btn btn-icon"
+                    [class.btn-secondary]="!isAudioEnabled"
+                    [class.btn-outline]="isAudioEnabled"
+                    [class.btn-active]="hasAudioStream"
+                    (click)="toggleAudio()"
+                    title="Toggle Microphone"
+                  >
+                    <i [class]="isAudioEnabled ? 'fas fa-microphone' : 'fas fa-microphone-slash'"></i>
+                  </button>
+
+                  <button 
+                    class="btn btn-icon"
+                    [class.btn-secondary]="!isVideoEnabled"
+                    [class.btn-outline]="isVideoEnabled"
+                    [class.btn-active]="hasVideoStream"
+                    (click)="toggleVideo()"
+                    title="Toggle Camera"
+                  >
+                    <i [class]="isVideoEnabled ? 'fas fa-video' : 'fas fa-video-slash'"></i>
+                  </button>
+
+                  <button 
+                    class="btn btn-icon btn-outline"
+                    (click)="openSettings()"
+                    title="Settings"
+                  >
+                    <i class="fas fa-cog"></i>
+                  </button>
+                  
+                  <!-- Debug button -->
+                  <!-- <button 
+                    class="btn btn-icon btn-outline"
+                    (click)="debugVideo()"
+                    title="Debug Video"
+                  >
+                    <i class="fas fa-bug"></i>
+                  </button> -->
+                </div>
+              </div>
+
+              <div class="device-info" *ngIf="currentDevices">
+                <div class="device-item">
+                  <i class="fas fa-microphone" [class.text-success]="hasAudioStream" [class.text-muted]="!hasAudioStream"></i>
+                  <span>{{ currentDevices.audioDevice || 'Default Microphone' }}</span>
+                  <span class="status-indicator" [class.active]="hasAudioStream">{{ hasAudioStream ? '● ON' : '○ OFF' }}</span>
+                </div>
+                <div class="device-item">
+                  <i class="fas fa-video"></i>
+                  <span>{{ currentDevices.videoDevice || 'Default Camera' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <div class="form-card">
+                <div class="form-header">
+                  <h2><i class="fas fa-sign-in-alt"></i> Join Meeting</h2>
+                  <p *ngIf="meetingId">Meeting ID: <strong>{{ meetingId }}</strong></p>
+                  <p *ngIf="!meetingId">Enter your details to join the meeting</p>
+                </div>
+
+                <form (ngSubmit)="joinMeeting()" #joinForm="ngForm" class="join-form">
+                  <div class="form-group">
+                    <label for="participantName">Your Name *</label>
+                    <input
+                      type="text"
+                      id="participantName"
+                      name="participantName"
+                      [(ngModel)]="participantName"
+                      required
+                      placeholder="Enter your full name"
+                      class="form-input"
+                      [disabled]="true"
+                    >
+                    <!-- [disabled]="isJoining" -->
+                  </div>
+
+                  <!-- @if (!meetingId){
+                  <div class="form-group" >
+                    <label for="meetingIdInput">Meeting ID *</label>
+                    <input
+                      type="text"
+                      id="meetingIdInput"
+                      name="meetingIdInput"
+                      [(ngModel)]="meetingIdInput"
+                      required
+                      placeholder="Enter meeting ID"
+                      class="form-input"
+                      [disabled]="isJoining"
+                    >
+                  </div>
+                    } -->
+
+                  <div class="join-options">
+                    <label class="checkbox-label">
+                      <input
+                        type="checkbox"
+                        [(ngModel)]="isAudioEnabled"
+                        name="joinWithAudio"
+                        (change)="updateAudioPreview()"
+                      >
+                      <span class="checkmark"></span>
+                      <span>Join with microphone on</span>
+                    </label>
+
+                    <label class="checkbox-label">
+                      <input
+                        type="checkbox"
+                        [(ngModel)]="isVideoEnabled"
+                        name="joinWithVideo"
+                        (change)="updateVideoPreview()"
+                      >
+                      <span class="checkmark"></span>
+                      <span>Join with camera on</span>
+                    </label>
+                  </div>
+
+                  <div class="form-actions">
+                    <button
+                      type="submit"
+                      class="btn btn-primary btn-large"
+                      [disabled]="!joinForm.valid || isJoining"
+                    >
+                      <span *ngIf="!isJoining">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Join Meeting
+                      </span>
+                      <span *ngIf="isJoining" class="flex items-center gap-2">
+                        <div class="spinner"></div>
+                        Joining...
+                      </span>
+                    </button>
+                  </div>
+                </form>
+
+                <div *ngIf="error" class="error-message">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  {{ error }}
+                </div>
+              </div>
+
+              <div class="info-card">
+                <h3><i class="fas fa-info-circle"></i> Before You Join</h3>
+                <ul>
+                  <li>
+                    <i class="fas fa-check"></i>
+                    Test your camera and microphone
+                  </li>
+                  <li>
+                    <i class="fas fa-check"></i>
+                    Ensure stable internet connection
+                  </li>
+                  <li>
+                    <i class="fas fa-check"></i>
+                    Find a quiet, well-lit space
+                  </li>
+                  <li>
+                    <i class="fas fa-check"></i>
+                    Close unnecessary applications
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Settings Modal -->
+      <div class="modal-overlay" *ngIf="showSettings" (click)="closeSettings()">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+          <div class="modal-header">
+            <h3><i class="fas fa-cog"></i> Device Settings</h3>
+            <button class="modal-close" (click)="closeSettings()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="device-settings">
+              <div class="setting-group">
+                <label>Camera</label>
+                <select [(ngModel)]="selectedVideoDevice" (change)="changeVideoDevice()" class="form-input">
+                  <option *ngFor="let device of videoDevices" [value]="device.deviceId">
+                    {{ device.label || 'Camera ' + (device.deviceId | slice:0:8) }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="setting-group">
+                <label>Microphone</label>
+                <select [(ngModel)]="selectedAudioDevice" (change)="changeAudioDevice()" class="form-input">
+                  <option *ngFor="let device of audioDevices" [value]="device.deviceId">
+                    {{ device.label || 'Microphone ' + (device.deviceId | slice:0:8) }}
+                  </option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>

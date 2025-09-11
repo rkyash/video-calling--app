@@ -29,7 +29,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   isConnecting: boolean = true;
   connectionError: string = '';
   isRecording: boolean = false;
-   isScreenRecording: boolean = false;
+  isScreenRecording: boolean = false;
   isChatOpen: boolean = false;
   isParticipantsOpen: boolean = false;
   isFullscreen: boolean = false;
@@ -185,25 +185,25 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     const participantsSub = this.openTokService.participants$.subscribe(participants => {
       console.log('Participants updated:', participants);
       this.participants = participants;
-      
+
       // Find current user in the participants array instead of getting a separate reference
       const currentUserFromService = this.openTokService.getCurrentUser();
       if (currentUserFromService) {
         this.currentUser = this.participants.find(p => p.id === currentUserFromService.id) || currentUserFromService;
       }
-      
+
       this.remoteParticipants = participants.filter(p => p.id !== this.currentUser?.id);
-      
+
       console.log('Current user:', this.currentUser);
       console.log('Remote participants:', this.remoteParticipants);
-      
+
       // Debug video overlay visibility
       if (this.currentUser) {
         console.log('Current user video muted state:', this.currentUser.isVideoMuted);
       }
       this.remoteParticipants.forEach(p => {
         console.log(`Remote participant ${p.name} video muted:`, p.isVideoMuted);
-        
+
         // Debug DOM state for each remote participant
         setTimeout(() => {
           const videoContainer = document.getElementById(`subscriber-${p.connectionId}`);
@@ -225,7 +225,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       const screenSharer = participants.find(p => p.isScreenSharing);
       this.isScreenShareActive = !!screenSharer;
       this.screenShareParticipant = screenSharer || null;
-      
+
       // Force Angular change detection
       this.cdr.detectChanges();
     });
@@ -249,7 +249,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       }
     });
 
-      // Subscribe to screen recording status
+    // Subscribe to screen recording status
     const screenRecordingSub = this.screenRecordingService.isScreenRecording$.subscribe(isScreenRecording => {
       this.isScreenRecording = isScreenRecording;
 
@@ -305,7 +305,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     console.log('Meeting room: Toggle video called');
     console.log('Before toggle - current user video muted:', this.currentUser?.isVideoMuted);
     this.openTokService.toggleVideo();
-    
+
     // Force immediate state update and change detection
     setTimeout(() => {
       // Refresh current user state from service
@@ -313,9 +313,9 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       if (updatedCurrentUser) {
         this.currentUser = this.participants.find(p => p.id === updatedCurrentUser.id) || updatedCurrentUser;
       }
-      
+
       console.log('After toggle - current user video muted:', this.currentUser?.isVideoMuted);
-      
+
       // Force Angular to detect changes
       this.cdr.detectChanges();
     }, 50);
@@ -393,9 +393,9 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
   toggleScreenRecording(): void {
     if (this.currentUser?.isHost) {
-      if (this.isScreenRecording) {        
+      if (this.isScreenRecording) {
         this.screenRecordingService.stopRecording();
-      } else {      
+      } else {
         this.screenRecordingService.startRecording();
       }
     }
@@ -497,22 +497,22 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       try {
         // Call disconnect API and wait for response
         await this.meetingService.disconnectParticipant();
-        
+
         // After getting API response, call participantLeft
         this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
-        
+
         // Disconnect from OpenTok session
         this.openTokService.disconnect();
-        
+
         // Close the window after successful disconnect
         this.router.navigate(['/']);
-        
+
       } catch (error) {
         console.error('Error during disconnect:', error);
         // Even if API call fails, still perform local cleanup and close
         this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
         this.openTokService.disconnect();
-       this.router.navigate(['/']);
+        this.router.navigate(['/']);
       }
     }
   }
@@ -523,7 +523,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
   getParticipantInitials(name?: string): string {
     if (!name) return '?';
-    
+
     const words = name.trim().split(' ');
     if (words.length === 1) {
       return words[0].substring(0, 2).toUpperCase();
@@ -555,7 +555,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     this.recordingDuration = '00:00';
   }
 
-   // Screen Recording Timer Methods
+  // Screen Recording Timer Methods
   private startScreenRecordingTimer(): void {
     this.screenRecordingStartTime = new Date();
     this.screenRecordingDuration = '00:00';
@@ -578,7 +578,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     this.screenRecordingDuration = '00:00';
   }
 
-  
+
   private formatRecordingDuration(milliseconds: number): string {
     const totalSeconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(totalSeconds / 60);

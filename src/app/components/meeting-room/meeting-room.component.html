@@ -345,12 +345,14 @@
         <div class="controls-spacer">
 
             <!-- Recording Indicator (Left Side) -->
-            <div class="scerreen-recording-info">
-                <div class="recording-indicator" *ngIf="isScreenRecording">
+            <div class="screen-recording-info">
+                @if (isScreenRecording){
+                <div class="recording-indicator">
                     <div class="recording-dot"></div>
-                    <span class="recording-text">REC</span>
+                    <span class="recording-text">Screen REC</span>
                     <span class="recording-timer">{{ screenRecordingDuration }}</span>
                 </div>
+            }
             </div>
 
         </div>
