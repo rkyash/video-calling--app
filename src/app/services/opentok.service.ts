@@ -89,12 +89,40 @@ export class OpenTokService {
           console.log('Stream created:', event.stream);
           console.log('Stream has audio:', event.stream.hasAudio);
           console.log('Stream has video:', event.stream.hasVideo);
-          this.subscribeToStream(event.stream, isHost);
+          console.log('Stream videoType:', event.stream.videoType);
+          console.log('Stream name:', event.stream.name);
+          
+          // Handle screen share streams differently
+          if (event.stream.videoType === 'screen') {
+            console.log('Screen share stream detected');
+            this.handleScreenShareStream(event.stream);
+          } else {
+            this.subscribeToStream(event.stream, isHost);
+          }
         });
 
         this.session.on('streamDestroyed', (event) => {
           console.log('Stream destroyed:', event.stream);
-          this.removeParticipant(event.stream.connection.connectionId);
+          console.log('Stream videoType:', event.stream.videoType);
+          console.log('Stream name:', event.stream.name);
+          
+          // Don't remove participant if this is just a screen share stream being destroyed
+          if (event.stream.videoType === 'screen') {
+            console.log('Screen share stream destroyed - not removing participant');
+            // Only update the screen sharing state for the participant
+            this.updateParticipant(event.stream.connection.connectionId, { isScreenSharing: false });
+            
+            // Clean up screen share subscriber if it exists
+            const screenSubscriber = this.subscribers.get(`screen-${event.stream.connection.connectionId}`);
+            if (screenSubscriber) {
+              this.subscribers.delete(`screen-${event.stream.connection.connectionId}`);
+              console.log('Screen share subscriber cleaned up');
+            }
+          } else {
+            // This is a regular video/audio stream being destroyed - participant is leaving
+            console.log('Regular stream destroyed - removing participant');
+            this.removeParticipant(event.stream.connection.connectionId);
+          }
         });
 
         this.session.on('streamPropertyChanged', (event) => {
@@ -105,6 +133,9 @@ export class OpenTokService {
             this.updateParticipant(event.stream.connection.connectionId, { 
               isVideoMuted: !event.stream.hasVideo 
             });
+            
+            // Force update video element visibility for remote participants
+            this.updateVideoElementVisibility(event.stream.connection.connectionId, event.stream.hasVideo);
           }
           if (event.changedProperty === 'hasAudio') {
             console.log(`Audio property changed for ${event.stream.connection.connectionId}: hasAudio = ${event.stream.hasAudio}`);
@@ -230,6 +261,43 @@ export class OpenTokService {
     }
   }
 
+  private handleScreenShareStream(stream: OT.Stream): void {
+    console.log('Handling screen share stream from:', stream.connection.connectionId);
+    
+    // Find the screen share container - it should already exist due to the screen share layout
+    let screenShareContainer = document.getElementById('screen-share-publisher');
+    
+    // If this is a remote screen share, we need to create a subscriber in the screen share area
+    if (stream.connection.connectionId !== this.currentUser?.connectionId) {
+      console.log('Remote screen share detected, subscribing...');
+      
+      // Update participant state to show they are screen sharing
+      this.updateParticipant(stream.connection.connectionId, { isScreenSharing: true });
+      
+      // Create subscriber for remote screen share
+      if (screenShareContainer) {
+        const subscriber = this.session?.subscribe(stream, screenShareContainer, {
+          width: '100%',
+          height: '100%',
+          insertMode: 'append',
+          showControls: false,
+          subscribeToAudio: false, // Don't subscribe to audio from screen share
+          subscribeToVideo: true
+        });
+        
+        if (subscriber) {
+          this.subscribers.set(`screen-${stream.connection.connectionId}`, subscriber);
+          console.log('Remote screen share subscriber created');
+          
+          // Force visibility
+          setTimeout(() => {
+            this.forceScreenShareVisibility();
+          }, 200);
+        }
+      }
+    }
+  }
+
   private subscribeToStream(stream: OT.Stream, _isHost: boolean): void {
     const subscriberContainer = document.getElementById(`subscriber-${stream.connection.connectionId}`);
 
@@ -322,20 +390,36 @@ export class OpenTokService {
 
   private removeParticipant(connectionId: string): void {
     const leavingParticipant = this.participants.find(p => p.connectionId === connectionId);
+    
+    console.log('Removing participant:', {
+      connectionId,
+      participantName: leavingParticipant?.name,
+      isHost: leavingParticipant?.isHost
+    });
+    
     this.participants = this.participants.filter(p => p.connectionId !== connectionId);
 
     // If host is leaving, disconnect all participants and end the meeting
-    if (leavingParticipant?.isHost) {
-      this.endMeetingForAll();
-      return;
-    }
+    // if (leavingParticipant?.isHost) {
+    //   console.log('Host is leaving - ending meeting for all participants');
+    //   this.endMeetingForAll();
+    //   return;
+    // }
 
     this.participantsSubject.next([...this.participants]);
 
+    // Clean up regular video subscriber
     const subscriber = this.subscribers.get(connectionId);
     if (subscriber) {
-      // subscriber.destroy();
       this.subscribers.delete(connectionId);
+      console.log('Regular subscriber cleaned up for:', connectionId);
+    }
+    
+    // Clean up screen share subscriber if it exists
+    const screenSubscriber = this.subscribers.get(`screen-${connectionId}`);
+    if (screenSubscriber) {
+      this.subscribers.delete(`screen-${connectionId}`);
+      console.log('Screen share subscriber cleaned up for:', connectionId);
     }
   }
 
@@ -353,17 +437,20 @@ export class OpenTokService {
         console.log(`Received video mute signal from ${event.from?.connectionId}:`, data.muted);
         this.updateParticipant(event.from?.connectionId || '', { isVideoMuted: data.muted });
         
-        // Also update the video element visibility immediately
-        setTimeout(() => {
-          const subscriberElement = document.getElementById(`subscriber-${event.from?.connectionId}`);
-          if (subscriberElement) {
-            subscriberElement.style.display = data.muted ? 'none' : 'block';
-            console.log(`Updated subscriber element visibility for ${event.from?.connectionId}: ${data.muted ? 'hidden' : 'visible'}`);
-          }
-        }, 50);
+        // Update video element visibility using the helper method
+        this.updateVideoElementVisibility(event.from?.connectionId || '', !data.muted);
         break;
       case 'signal:screenShare':
+        console.log(`Received screen share signal from ${event.from?.connectionId}:`, data.sharing);
         this.updateParticipant(event.from?.connectionId || '', { isScreenSharing: data.sharing });
+        
+        // If screen sharing started, ensure the layout is updated and visible
+        if (data.sharing) {
+          console.log('Screen sharing started by participant:', event.from?.connectionId);
+          setTimeout(() => {
+            this.forceScreenShareVisibility();
+          }, 300);
+        }
         break;
       case 'signal:chat':
         // Handle incoming chat messages
@@ -406,6 +493,26 @@ export class OpenTokService {
       this.participants[participantIndex] = { ...this.participants[participantIndex], ...updates };
       this.participantsSubject.next([...this.participants]);
     }
+  }
+
+  private updateVideoElementVisibility(connectionId: string, hasVideo: boolean): void {
+    // Update visibility for remote participant video elements
+    setTimeout(() => {
+      const subscriberElement = document.getElementById(`subscriber-${connectionId}`);
+      if (subscriberElement) {
+        subscriberElement.style.display = hasVideo ? 'block' : 'none';
+        console.log(`Updated video element visibility for ${connectionId}: ${hasVideo ? 'visible' : 'hidden'}`);
+      }
+      
+      // Update local video element if this is the current user
+      if (this.currentUser && connectionId === this.currentUser.connectionId) {
+        const publisherElement = document.getElementById('publisher');
+        if (publisherElement) {
+          publisherElement.style.display = hasVideo ? 'block' : 'none';
+          console.log(`Updated local video element visibility: ${hasVideo ? 'visible' : 'hidden'}`);
+        }
+      }
+    }, 50);
   }
 
   private updateParticipantInfo(connectionId: string, data: any): void {
@@ -493,11 +600,20 @@ export class OpenTokService {
       const wasVideoMuted = this.currentUser.isVideoMuted;
       const willEnableVideo = wasVideoMuted; // If currently muted, will enable
       
+      console.log('Video toggle starting:', { 
+        wasVideoMuted: wasVideoMuted, 
+        willEnableVideo: willEnableVideo,
+        currentUser: this.currentUser.name
+      });
+      
       // Toggle the OpenTok publisher video
       this.publisher.publishVideo(willEnableVideo);
       
-      // Update local state
+      // Update local state immediately
       this.currentUser.isVideoMuted = !wasVideoMuted;
+      
+      // Update local video element visibility immediately
+      this.updateVideoElementVisibility(this.currentUser.connectionId, willEnableVideo);
       
       // Send signal to other participants
       this.sendSignal('muteVideo', { muted: this.currentUser.isVideoMuted });
@@ -509,20 +625,18 @@ export class OpenTokService {
         signalSent: { muted: this.currentUser.isVideoMuted }
       });
       
-      // Update local video element visibility
-      const publisherElement = document.getElementById('publisher');
-      if (publisherElement) {
-        publisherElement.style.display = this.currentUser.isVideoMuted ? 'none' : 'block';
-      }
-      
       // Force participants update to ensure overlay visibility changes
       this.participantsSubject.next([...this.participants]);
       
       // Additional delayed update to ensure UI changes are reflected
       setTimeout(() => {
         console.log('Video toggle follow-up - currentUser state:', this.currentUser);
+        // Ensure the video element state is still correct
+        if (this.currentUser) {
+          this.updateVideoElementVisibility(this.currentUser.connectionId, !this.currentUser.isVideoMuted);
+        }
         this.participantsSubject.next([...this.participants]);
-      }, 100);
+      }, 200);
     }
   }
 
@@ -558,10 +672,12 @@ export class OpenTokService {
         screenShareContainer = this.createFallbackScreenShareContainer();
       }
 
+      console.log('Starting screen publisher with container:', screenShareContainer);
+
       this.screenPublisher = OT.initPublisher(screenShareContainer, {
         videoSource: 'screen',
         publishAudio: false, // Use microphone from camera stream
-        // publishVideo: true,
+        publishVideo: true,
         width: '100%',
         height: '100%',
         insertMode: 'append',
@@ -570,29 +686,64 @@ export class OpenTokService {
       });
 
       if (this.session && this.screenPublisher) {
-        this.session.publish(this.screenPublisher);
+        // Add event listeners before publishing
+        this.screenPublisher.on('streamCreated', (event) => {
+          console.log('Screen share stream created:', event.stream);
+          // Ensure all participants can see the screen share
+          this.forceScreenShareVisibility();
+        });
 
-        // Listen for screen share ended (when user stops sharing via browser UI)
-        this.screenPublisher.on('streamDestroyed', () => {
+        this.screenPublisher.on('accessAllowed', () => {
+          console.log('Screen share access allowed');
+        });
+
+        this.screenPublisher.on('accessDenied', (error) => {
+          console.error('Screen share access denied:', error);
           this.stopScreenSharing();
         });
 
+        // Listen for screen share ended (when user stops sharing via browser UI)
+        this.screenPublisher.on('streamDestroyed', () => {
+          console.log('Screen share stream destroyed');
+          this.stopScreenSharing();
+        });
+
+        this.session.publish(this.screenPublisher);
+        console.log('Screen publisher published to session');
+
         // Update the signal with the actual stream ID now that it's available
         if (this.currentUser) {
-          this.sendSignal('screenShare', {
-            sharing: true,
-            streamId: this.screenPublisher.stream?.streamId
-          });
+          setTimeout(() => {
+            this.sendSignal('screenShare', {
+              sharing: true,
+              streamId: this.screenPublisher?.stream?.streamId || 'screen-share'
+            });
+            console.log('Screen share signal sent with stream ID');
+          }, 500);
         }
       }
     } catch (error) {
+      console.error('Screen sharing failed:', error);
+      // Reset screen sharing state on error
+      if (this.currentUser) {
+        this.currentUser.isScreenSharing = false;
+        this.sendSignal('screenShare', { sharing: false });
+        this.participantsSubject.next([...this.participants]);
+      }
       this.errorSubject.next('Failed to start screen sharing. Please allow screen sharing permission.');
       throw error;
     }
   }
 
   stopScreenSharing(): void {
+    console.log('Stopping screen sharing...');
+    
     if (this.screenPublisher && this.currentUser?.isScreenSharing) {
+      console.log('Unpublishing screen share stream');
+      
+      // Remove event listeners to prevent recursive calls
+      this.screenPublisher.off('streamDestroyed');
+      
       // Stop the screen sharing publisher without affecting camera stream
       this.session?.unpublish(this.screenPublisher);
       this.screenPublisher = null;
@@ -612,7 +763,10 @@ export class OpenTokService {
         this.currentUser.isScreenSharing = false;
         this.sendSignal('screenShare', { sharing: false });
         this.participantsSubject.next([...this.participants]);
+        console.log('Screen sharing state updated and signal sent');
       }
+    } else {
+      console.log('Screen sharing already stopped or not active');
     }
   }
 
@@ -722,6 +876,29 @@ export class OpenTokService {
     }
 
     return container;
+  }
+
+  private forceScreenShareVisibility(): void {
+    // Ensure screen share is visible to all participants
+    setTimeout(() => {
+      const screenShareElement = document.getElementById('screen-share-publisher');
+      if (screenShareElement) {
+        // Make sure the screen share element is properly visible
+        screenShareElement.style.display = 'block';
+        screenShareElement.style.visibility = 'visible';
+        console.log('Screen share element visibility forced');
+        
+        // Also ensure the parent container is visible
+        const screenShareContainer = screenShareElement.closest('.screen-share-container');
+        if (screenShareContainer) {
+          (screenShareContainer as HTMLElement).style.display = 'block';
+          (screenShareContainer as HTMLElement).style.visibility = 'visible';
+        }
+      }
+      
+      // Force layout update
+      this.participantsSubject.next([...this.participants]);
+    }, 100);
   }
 
   private cleanup(): void {

@@ -25,7 +25,7 @@ export class ConfigService {
     
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       this.currentEnvironment = 'development';
-    } else if (hostname.includes('staging')) {
+    } else if (hostname.includes('https://hcoaccreditationtest.nabh.co')) {
       this.currentEnvironment = 'staging';  
     } else {
       this.currentEnvironment = 'production';

@@ -381,8 +381,8 @@ import { AuthService } from 'src/app/services/auth.service';
   `]
 })
 export class HomeComponent implements OnInit, OnDestroy {
-  meetingId: string = '';
-  meetingCode: string = '';
+  meetingId: string = '13643714';
+  meetingCode: string = '13643714';
   originSiteUrl: string = '';
   token = "";
   private messageCount = 0;
