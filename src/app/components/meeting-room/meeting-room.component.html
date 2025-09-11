@@ -30,7 +30,99 @@
     <!-- Main Meeting Content -->
     <div class="meeting-content">
         <!-- Video Grid -->
-        <div class="video-section" [class.chat-open]="isChatOpen" [class.screen-share-active]="isScreenShareActive">
+        <div class="video-section" [class.chat-open]="isChatOpen" [class.screen-share-active]="isScreenShareActive" [class.pinned-video-active]="isPinnedVideoActive">
+            <!-- Pinned Video Layout (Similar to Screen Share) -->
+            <div *ngIf="isPinnedVideoActive && !isScreenShareActive" class="pinned-video-layout">
+                <!-- Main Pinned Video Area -->
+                <div class="pinned-video-main">
+                    <div class="pinned-video-container">
+                        <div id="pinned-video-publisher" class="pinned-video-element"></div>
+                        <!-- Modern small participant name badge -->
+                        <div class="pinned-participant-badge">
+                            <i class="fas fa-thumbtack"></i>
+                            <span class="participant-name-text">{{ pinnedParticipant?.name || 'Unknown' }}</span>
+                        </div>
+                        <!-- Small unpin button positioned like pin button -->
+                        <button class="unpin-button-small" (click)="unpinParticipant()" title="Unpin Video">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Other Participants Sidebar -->
+                <div class="participants-sidebar">
+                    <!-- Local Video (if not pinned) -->
+                    <div *ngIf="currentUser && pinnedParticipant?.id !== currentUser.id" class="video-participant local-video mini">
+                        <div class="video-container">
+                            <div id="publisher" class="video-element mini-video"
+                                [style.display]="currentUser?.isVideoMuted ? 'none' : 'block'"></div>
+                            <!-- Video disabled overlay for mini layout -->
+                            <div class="video-disabled-overlay mini" *ngIf="currentUser?.isVideoMuted">
+                                <div class="participant-avatar small">
+                                    <span class="avatar-initials">{{ getParticipantInitials(currentUser?.name) }}</span>
+                                </div>
+                            </div>
+                            <div class="participant-overlay"
+                                *ngIf="currentUser?.isAudioMuted || currentUser?.isVideoMuted"
+                                [class.always-visible]="true">
+                                <span class="participant-name">You</span>
+                                <div class="participant-status">
+                                    <span *ngIf="currentUser?.isAudioMuted" class="status-icon muted">
+                                        <i class="fas fa-microphone-slash"></i>
+                                    </span>
+                                    <span *ngIf="currentUser?.isVideoMuted" class="status-icon muted">
+                                        <i class="fas fa-video-slash"></i>
+                                    </span>
+                                </div>
+                            </div>
+                            <!-- Pin button -->
+                            <button class="pin-button" (click)="pinParticipant(currentUser)" title="Pin Video">
+                                <i class="fas fa-thumbtack"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Remote Videos (excluding pinned participant) -->
+                    <div *ngFor="let participant of remoteParticipants" class="video-participant mini"
+                        [attr.data-connection-id]="participant.connectionId"
+                        [style.display]="pinnedParticipant?.id === participant.id ? 'none' : 'block'">
+                        <div class="video-container">
+                            <div [id]="'subscriber-' + participant.connectionId" class="video-element mini-video"
+                                [style.display]="participant.isVideoMuted ? 'none' : 'block'"></div>
+                            <!-- Video disabled overlay for mini layout -->
+                            <div class="video-disabled-overlay mini" *ngIf="participant.isVideoMuted">
+                                <div class="participant-avatar small">
+                                    <span class="avatar-initials">{{ getParticipantInitials(participant.name) }}</span>
+                                </div>
+                            </div>
+                            <div class="participant-overlay"
+                                *ngIf="participant.isAudioMuted || participant.isVideoMuted || participant.isHost || participant.hasRaisedHand"
+                                [class.always-visible]="true">
+                                <span class="participant-name">{{ participant.name }}</span>
+                                <div class="participant-status">
+                                    <span *ngIf="participant.isHost" class="status-icon host">
+                                        <i class="fas fa-crown"></i>
+                                    </span>
+                                    <span *ngIf="participant.isAudioMuted" class="status-icon muted">
+                                        <i class="fas fa-microphone-slash"></i>
+                                    </span>
+                                    <span *ngIf="participant.isVideoMuted" class="status-icon muted">
+                                        <i class="fas fa-video-slash"></i>
+                                    </span>
+                                    <span *ngIf="participant.hasRaisedHand" class="status-icon raised-hand">
+                                        <i class="fas fa-hand-paper"></i>
+                                    </span>
+                                </div>
+                            </div>
+                            <!-- Pin button -->
+                            <button class="pin-button" (click)="pinParticipant(participant)" title="Pin Video">
+                                <i class="fas fa-thumbtack"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Screen Share Layout (Google Meet Style) -->
             <div *ngIf="isScreenShareActive" class="screen-share-layout">
                 <!-- Main Screen Share Area -->
@@ -108,8 +200,8 @@
                 </div>
             </div>
 
-            <!-- Normal Grid Layout (when no screen sharing) -->
-            @if(!isScreenShareActive){
+            <!-- Normal Grid Layout (when no screen sharing and no pinned video) -->
+            @if(!isScreenShareActive && !isPinnedVideoActive){
             <div class="video-grid" #videoGrid [ngClass]="getVideoGridClass()">
                 <!-- Local Video -->
                 <div class="video-participant local-video">
@@ -123,12 +215,13 @@
                             </div>
                             <div class="participant-name-large">{{ currentUser?.name }}</div>
                         </div>
+                        <!-- Always show participant overlay for identification -->
                         <div class="participant-overlay"
-                            *ngIf="currentUser?.isVideoMuted || currentUser?.isAudioMuted || currentUser?.hasRaisedHand"
-                            [class.always-visible]="currentUser?.isVideoMuted"
-                            [class.hover-only]="!currentUser?.isVideoMuted">
+                            *ngIf="currentUser"
+                            [class.always-visible]="currentUser?.isVideoMuted || currentUser?.isAudioMuted || currentUser?.hasRaisedHand"
+                            [class.hover-only]="!currentUser?.isVideoMuted && !currentUser?.isAudioMuted && !currentUser?.hasRaisedHand">
                             <span class="participant-name">{{ currentUser?.name }} (You)</span>
-                            <div class="participant-status">
+                            <div class="participant-status" *ngIf="currentUser?.isAudioMuted || currentUser?.isVideoMuted || currentUser?.hasRaisedHand">
                                 <span *ngIf="currentUser?.isAudioMuted" class="status-icon muted">
                                     <i class="fas fa-microphone-slash"></i>
                                 </span>
@@ -140,6 +233,10 @@
                                 </span>
                             </div>
                         </div>
+                        <!-- Pin button -->
+                        <button class="pin-button" (click)="pinParticipant(currentUser)" title="Pin Video" *ngIf="currentUser">
+                            <i class="fas fa-thumbtack"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -158,12 +255,12 @@
                             <div class="participant-name-large">{{ participant.name }}</div>
                         </div>
                         }
-                        @if (participant.isAudioMuted || participant.isVideoMuted || participant.hasRaisedHand ||
-                        participant.isHost){
-                        <div class="participant-overlay" [class.always-visible]="participant.isVideoMuted"
-                            [class.hover-only]="!participant.isVideoMuted">
+                        <!-- Always show participant overlay for identification -->
+                        <div class="participant-overlay" 
+                            [class.always-visible]="participant.isVideoMuted || participant.isAudioMuted || participant.hasRaisedHand || participant.isHost"
+                            [class.hover-only]="!participant.isVideoMuted && !participant.isAudioMuted && !participant.hasRaisedHand && !participant.isHost">
                             <span class="participant-name">{{ participant.name }}</span>
-                            <div class="participant-status">
+                            <div class="participant-status" *ngIf="participant.isAudioMuted || participant.isVideoMuted || participant.hasRaisedHand || participant.isHost">
                                 @if(participant.isHost){
                                 <span class="status-icon host">
                                     <i class="fas fa-crown"></i>
@@ -186,7 +283,10 @@
                                 }
                             </div>
                         </div>
-                        }
+                        <!-- Pin button -->
+                        <button class="pin-button" (click)="pinParticipant(participant)" title="Pin Video">
+                            <i class="fas fa-thumbtack"></i>
+                        </button>
                     </div>
                 </div>
             </div>

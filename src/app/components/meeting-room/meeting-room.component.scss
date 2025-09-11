@@ -349,6 +349,9 @@
             // Hidden by default when video is enabled, only show on hover
             opacity: 0;
             transition: opacity 0.3s ease;
+            // Ensure proper z-index and pointer events for proper interaction
+            z-index: 15;
+            pointer-events: none;
           }
 
           .participant-name {
@@ -397,6 +400,16 @@
         // Show overlay on hover when video is enabled
         &:hover .participant-overlay.hover-only {
           opacity: 1;
+          pointer-events: auto;
+        }
+        
+        // Ensure overlays are always properly positioned after video restoration
+        .participant-overlay {
+          // Force proper positioning context
+          position: absolute !important;
+          bottom: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
         }
       }
     }
@@ -1207,6 +1220,354 @@
           width: 48px;
           height: 48px;
           font-size: 1rem;
+        }
+      }
+    }
+
+    // Pinned Video Layout Styles (Similar to Screen Share)
+    .video-section.pinned-video-active {
+      padding: 0.5rem;
+    }
+
+    .pinned-video-layout {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      gap: 0.5rem;
+    }
+
+    .pinned-video-main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--dark-surface);
+      border-radius: 1rem;
+      min-height: 400px;
+    }
+
+    .pinned-video-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .pinned-video-element {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+      border-radius: 0.75rem;
+      object-fit: contain; // Best fit scaling
+
+      video {
+        width: 100%;
+        height: 100%;
+        object-fit: contain; // Maintain aspect ratio
+        border-radius: 0.75rem;
+      }
+    }
+
+    // Modern small participant name badge
+    .pinned-participant-badge {
+      position: absolute;
+      bottom: 1rem;
+      left: 1rem;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 0.5rem 0.75rem;
+      border-radius: 20px; // Pill-shaped modern design
+      font-size: 0.8125rem;
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      max-width: calc(100% - 2rem);
+      transition: all 0.2s;
+
+      &:hover {
+        background: rgba(0, 0, 0, 0.9);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      }
+
+      i {
+        color: var(--primary-color);
+        font-size: 0.75rem;
+        flex-shrink: 0;
+      }
+
+      .participant-name-text {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 200px;
+      }
+    }
+
+    .pinned-video-overlay {
+      position: absolute;
+      bottom: 1rem;
+      left: 1rem;
+      right: 1rem;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      .pinned-video-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 500;
+
+        i {
+          color: var(--primary-color);
+        }
+      }
+
+      .unpin-button {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.2);
+          border-color: rgba(255, 255, 255, 0.4);
+          transform: scale(1.1);
+        }
+
+        i {
+          font-size: 0.875rem;
+        }
+      }
+    }
+
+    // Small unpin button styled like pin button
+    .unpin-button-small {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: rgba(220, 38, 38, 0.8); // Red background to indicate unpin
+      border: 1px solid rgba(220, 38, 38, 0.9);
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      z-index: 15; // Higher than pin button
+      opacity: 0.9;
+
+      &:hover {
+        background: rgba(220, 38, 38, 1);
+        border-color: rgba(220, 38, 38, 1);
+        transform: scale(1.1);
+        opacity: 1;
+      }
+
+      i {
+        font-size: 0.875rem;
+      }
+    }
+
+    // Pin button styles
+    .pin-button {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      opacity: 0;
+      z-index: 10;
+
+      &:hover {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+        transform: scale(1.1);
+      }
+
+      i {
+        font-size: 0.875rem;
+      }
+    }
+
+    // Show pin button on hover
+    .video-participant:hover .pin-button,
+    .video-participant.mini:hover .pin-button {
+      opacity: 1;
+    }
+
+    // Mini video styles in pinned layout
+    .mini-video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
+      border-radius: 8px;
+
+      video {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover;
+        border-radius: 8px;
+      }
+    }
+
+    // Responsive design for pinned video layout
+    @media (max-width: 768px) {
+      .pinned-video-layout {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .participants-sidebar {
+        width: 100%;
+        height: 120px;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0.5rem;
+
+        .video-participant.mini {
+          min-width: 100px;
+          width: 100px;
+          min-height: 100px;
+          height: 100px;
+          flex-shrink: 0;
+        }
+      }
+
+      .pinned-video-main {
+        min-height: 300px;
+      }
+
+      .pinned-video-overlay {
+        bottom: 0.5rem;
+        left: 0.5rem;
+        right: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8125rem;
+
+        .unpin-button {
+          width: 28px;
+          height: 28px;
+
+          i {
+            font-size: 0.75rem;
+          }
+        }
+      }
+
+      // Responsive unpin button small
+      .unpin-button-small {
+        width: 32px;
+        height: 32px;
+        top: 0.5rem;
+        right: 0.5rem;
+
+        i {
+          font-size: 0.8125rem;
+        }
+      }
+
+      // Responsive participant badge
+      .pinned-participant-badge {
+        bottom: 0.5rem;
+        left: 0.5rem;
+        padding: 0.375rem 0.625rem;
+        font-size: 0.75rem;
+        border-radius: 16px;
+
+        i {
+          font-size: 0.625rem;
+        }
+
+        .participant-name-text {
+          max-width: 150px;
+        }
+      }
+    }
+
+    @media (max-width: 640px) {
+      .pin-button {
+        width: 32px;
+        height: 32px;
+        top: 0.375rem;
+        right: 0.375rem;
+
+        i {
+          font-size: 0.75rem;
+        }
+      }
+
+      .pinned-video-main {
+        min-height: 250px;
+      }
+
+      .participants-sidebar .video-participant.mini {
+        min-width: 80px;
+        width: 80px;
+        min-height: 80px;
+        height: 80px;
+      }
+
+      // Mobile unpin button small
+      .unpin-button-small {
+        width: 28px;
+        height: 28px;
+        top: 0.375rem;
+        right: 0.375rem;
+
+        i {
+          font-size: 0.75rem;
+        }
+      }
+
+      // Mobile participant badge
+      .pinned-participant-badge {
+        bottom: 0.375rem;
+        left: 0.375rem;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.6875rem;
+        border-radius: 12px;
+
+        i {
+          font-size: 0.5625rem;
+        }
+
+        .participant-name-text {
+          max-width: 120px;
         }
       }
     }

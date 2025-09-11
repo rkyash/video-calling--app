@@ -1390,4 +1390,268 @@ export class OpenTokService {
     };
   }
 
+  // Republish video element to a new container
+  republishToContainer(containerId: string, isSubscriber: boolean = false, connectionId?: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const targetContainer = document.getElementById(containerId);
+      if (!targetContainer) {
+        reject(new Error(`Container ${containerId} not found`));
+        return;
+      }
+
+      try {
+        if (!isSubscriber && this.publisher) {
+          // Republish publisher to new container
+          console.log(`Republishing publisher to container: ${containerId}`);
+          
+          if (!this.publisher.element) {
+            console.error('Publisher element is null - this may indicate OpenTok initialization issues');
+            reject(new Error('Publisher element not found'));
+            return;
+          }
+
+          // Store current parent to track movement
+          const currentParent = this.publisher.element.parentElement;
+          console.log('Publisher element current parent:', currentParent?.id);
+          
+          // Clear target container first
+          targetContainer.innerHTML = '';
+          
+          // Move the publisher element with error handling
+          try {
+            targetContainer.appendChild(this.publisher.element);
+            console.log('Publisher element moved successfully');
+            
+            // Apply proper styles and verify health
+            setTimeout(() => {
+              this.applyVideoElementStyles(targetContainer);
+              this.verifyVideoElementHealth(targetContainer, false);
+              resolve();
+            }, 150);
+          } catch (moveError) {
+            console.error('Failed to move publisher element:', moveError);
+            reject(moveError);
+          }
+        } else if (isSubscriber && connectionId) {
+          // Republish subscriber to new container
+          const subscriber = this.subscribers.get(connectionId);
+          
+          if (!subscriber) {
+            console.error(`Subscriber not found for connection: ${connectionId}`);
+            reject(new Error(`Subscriber not found for connection: ${connectionId}`));
+            return;
+          }
+
+          if (!subscriber.element) {
+            console.error(`Subscriber element is null for connection: ${connectionId}`);
+            reject(new Error(`Subscriber element not found for connection: ${connectionId}`));
+            return;
+          }
+
+          console.log(`Republishing subscriber ${connectionId} to container: ${containerId}`);
+          
+          // Store current parent to track movement
+          const currentParent = subscriber.element.parentElement;
+          console.log(`Subscriber element current parent for ${connectionId}:`, currentParent?.id);
+          
+          // Clear target container first
+          targetContainer.innerHTML = '';
+          
+          // Move the subscriber element with error handling
+          try {
+            targetContainer.appendChild(subscriber.element);
+            console.log(`Subscriber element moved successfully for ${connectionId}`);
+            
+            // Apply proper styles and verify health
+            setTimeout(() => {
+              this.applyVideoElementStyles(targetContainer);
+              this.verifyVideoElementHealth(targetContainer, true, connectionId);
+              resolve();
+            }, 150);
+          } catch (moveError) {
+            console.error(`Failed to move subscriber element for ${connectionId}:`, moveError);
+            reject(moveError);
+          }
+        } else {
+          const errorMsg = !isSubscriber ? 'Publisher not initialized' : `Invalid parameters for subscriber republishing`;
+          console.error(errorMsg);
+          reject(new Error(errorMsg));
+        }
+      } catch (error) {
+        console.error('Error in republishToContainer:', error);
+        reject(error);
+      }
+    });
+  }
+
+  private applyVideoElementStyles(container: HTMLElement): void {
+    // Apply styles to video elements for proper display
+    const videoElements = container.querySelectorAll('video');
+    videoElements.forEach(video => {
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.objectFit = 'contain';
+      video.style.borderRadius = '0.75rem';
+    });
+
+    // Apply styles to OpenTok div wrappers
+    const otElements = container.querySelectorAll('div');
+    otElements.forEach(div => {
+      if (div !== container) { // Don't apply to the container itself
+        div.style.width = '100%';
+        div.style.height = '100%';
+        div.style.borderRadius = '0.75rem';
+        div.style.overflow = 'hidden';
+      }
+    });
+
+    // Ensure the container maintains proper positioning for overlays
+    if (container) {
+      container.style.position = 'relative';
+      // Force a reflow to ensure overlays are properly positioned
+      container.offsetHeight;
+    }
+
+    console.log('Applied video element styles to container:', container.id);
+  }
+
+  // Force video element visibility and proper attachment
+  forceVideoElementAttachment(containerId: string, isSubscriber: boolean = false, connectionId?: string): void {
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error(`Container ${containerId} not found for video attachment`);
+      return;
+    }
+
+    console.log(`Forcing video element attachment to ${containerId}`, { isSubscriber, connectionId });
+
+    setTimeout(() => {
+      if (!isSubscriber && this.publisher?.element) {
+        // Check publisher attachment
+        console.log('Publisher element state:', {
+          elementExists: !!this.publisher.element,
+          containerHasElement: container.contains(this.publisher.element),
+          containerChildren: container.children.length,
+          publisherElementParent: this.publisher.element.parentElement?.id
+        });
+
+        if (!container.contains(this.publisher.element)) {
+          console.log(`Re-attaching publisher element to ${containerId}`);
+          container.innerHTML = '';
+          container.appendChild(this.publisher.element);
+        }
+        this.applyVideoElementStyles(container);
+        
+        // Additional check for video element visibility
+        const videoElement = container.querySelector('video');
+        if (videoElement) {
+          console.log('Publisher video element found and styled');
+        } else {
+          console.warn('No video element found in publisher container after attachment');
+        }
+        
+      } else if (isSubscriber && connectionId) {
+        // Check subscriber attachment
+        const subscriber = this.subscribers.get(connectionId);
+        console.log(`Subscriber element state for ${connectionId}:`, {
+          subscriberExists: !!subscriber,
+          elementExists: !!subscriber?.element,
+          containerHasElement: subscriber?.element ? container.contains(subscriber.element) : false,
+          containerChildren: container.children.length,
+          subscriberElementParent: subscriber?.element?.parentElement?.id
+        });
+
+        if (subscriber?.element && !container.contains(subscriber.element)) {
+          console.log(`Re-attaching subscriber element to ${containerId}`);
+          container.innerHTML = '';
+          container.appendChild(subscriber.element);
+        }
+        if (subscriber) {
+          this.applyVideoElementStyles(container);
+          
+          // Additional check for video element visibility
+          const videoElement = container.querySelector('video');
+          if (videoElement) {
+            console.log(`Subscriber video element found and styled for ${connectionId}`);
+          } else {
+            console.warn(`No video element found in subscriber container for ${connectionId} after attachment`);
+          }
+        }
+      }
+    }, 200);
+  }
+
+  // Verify video element health after movement
+  private verifyVideoElementHealth(container: HTMLElement, isSubscriber: boolean, connectionId?: string): void {
+    const videoElement = container.querySelector('video');
+    
+    console.log('Verifying video element health:', {
+      containerId: container.id,
+      hasVideoElement: !!videoElement,
+      isSubscriber,
+      connectionId
+    });
+
+    if (videoElement) {
+      const healthCheck = {
+        videoWidth: videoElement.videoWidth,
+        videoHeight: videoElement.videoHeight,
+        readyState: videoElement.readyState,
+        networkState: videoElement.networkState,
+        currentTime: videoElement.currentTime,
+        paused: videoElement.paused,
+        srcObject: !!videoElement.srcObject
+      };
+      
+      console.log('Video element health check:', healthCheck);
+      
+      // If video seems unhealthy, log a warning
+      if (videoElement.readyState < 2 && !videoElement.srcObject) {
+        console.warn('Video element may not have valid media source');
+      }
+    } else {
+      console.warn('No video element found in container after republish');
+    }
+  }
+
+  // Debug method to check video element states
+  debugVideoElementState(containerId: string): void {
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error(`Debug: Container ${containerId} not found`);
+      return;
+    }
+
+    console.log(`Debug: Video element state for ${containerId}:`, {
+      containerExists: true,
+      containerChildren: container.children.length,
+      hasVideoElement: !!container.querySelector('video'),
+      containerInnerHTML: container.innerHTML.length > 0 ? 'Has content' : 'Empty',
+      containerDimensions: {
+        width: container.offsetWidth,
+        height: container.offsetHeight
+      }
+    });
+
+    const videoElement = container.querySelector('video');
+    if (videoElement) {
+      console.log(`Debug: Video element details for ${containerId}:`, {
+        videoWidth: videoElement.videoWidth,
+        videoHeight: videoElement.videoHeight,
+        readyState: videoElement.readyState,
+        networkState: videoElement.networkState,
+        currentTime: videoElement.currentTime,
+        paused: videoElement.paused,
+        muted: videoElement.muted,
+        srcObject: !!videoElement.srcObject,
+        style: {
+          display: videoElement.style.display,
+          width: videoElement.style.width,
+          height: videoElement.style.height,
+          objectFit: videoElement.style.objectFit
+        }
+      });
+    }
+  }
+
 }

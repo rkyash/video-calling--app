@@ -50,6 +50,8 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   isScreenShareActive: boolean = false;
   screenShareParticipant: Participant | null = null;
   isMoreMenuOpen: boolean = false;
+  isPinnedVideoActive: boolean = false;
+  pinnedParticipant: Participant | null = null;
 
   newMessage: string = '';
   unreadMessages: number = 0;
@@ -220,6 +222,12 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       }
       this.remoteParticipants.forEach(p => {
         console.log(`Remote participant ${p.name} video muted:`, p.isVideoMuted);
+        
+        // Handle pinned remote participant video toggle
+        if (this.isPinnedVideoActive && this.pinnedParticipant && this.pinnedParticipant.id === p.id) {
+          console.log(`Pinned remote participant ${p.name} video state changed:`, p.isVideoMuted);
+          this.handleRemoteParticipantVideoToggle(p);
+        }
 
         // Debug DOM state for each remote participant
         setTimeout(() => {
@@ -240,8 +248,15 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
       // Check if anyone is screen sharing
       const screenSharer = participants.find(p => p.isScreenSharing);
+      const wasScreenShareActive = this.isScreenShareActive;
       this.isScreenShareActive = !!screenSharer;
       this.screenShareParticipant = screenSharer || null;
+
+      // Automatically unpin any pinned video when screen sharing starts
+      if (this.isScreenShareActive && !wasScreenShareActive && this.isPinnedVideoActive) {
+        console.log('Screen sharing started, unpinning participant video');
+        this.unpinParticipant();
+      }
 
       // Force Angular change detection
       this.cdr.detectChanges();
@@ -321,6 +336,8 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   toggleVideo(): void {
     console.log('Meeting room: Toggle video called');
     console.log('Before toggle - current user video muted:', this.currentUser?.isVideoMuted);
+    console.log('Current pinned state:', { isPinnedVideoActive: this.isPinnedVideoActive, pinnedParticipant: this.pinnedParticipant?.name });
+    
     this.openTokService.toggleVideo();
 
     // Force immediate state update and change detection
@@ -332,7 +349,16 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       }
 
       console.log('After toggle - current user video muted:', this.currentUser?.isVideoMuted);
-
+      
+      // Special handling for pinned video after mute/unmute
+      if (this.isPinnedVideoActive && this.pinnedParticipant && this.currentUser) {
+        if (this.pinnedParticipant.id === this.currentUser.id) {
+          // Local participant is pinned - ensure video element loads properly in pinned container
+          console.log('Handling video toggle for pinned local participant');
+          this.handlePinnedVideoToggle(this.currentUser, false);
+        }
+      }
+      
       // Force Angular to detect changes
       this.cdr.detectChanges();
     }, 50);
@@ -624,6 +650,380 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     } else {
       return (words[0][0] + words[words.length - 1][0]).toUpperCase();
     }
+  }
+
+  // Pin/Unpin participant video methods
+  async pinParticipant(participant: Participant): Promise<void> {
+    console.log('Pinning participant:', participant.name);
+    
+    // Don't pin if screen sharing is active
+    if (this.isScreenShareActive) {
+      this.toastService.info('Cannot Pin', 'Cannot pin participant while screen sharing is active');
+      return;
+    }
+    
+    this.pinnedParticipant = participant;
+    this.isPinnedVideoActive = true;
+    
+    // Force change detection to update layout
+    this.cdr.detectChanges();
+    
+    // Wait for DOM to update, then move the video
+    setTimeout(async () => {
+      try {
+        await this.movePinnedVideoToMainArea(participant);
+        this.toastService.success('Video Pinned', `${participant.name}'s video has been pinned`);
+      } catch (error) {
+        console.error('Failed to pin participant:', error);
+        // Reset state on failure
+        this.pinnedParticipant = null;
+        this.isPinnedVideoActive = false;
+        this.cdr.detectChanges();
+      }
+    }, 200);
+  }
+
+  async unpinParticipant(): Promise<void> {
+    if (this.pinnedParticipant) {
+      console.log('Unpinning participant:', this.pinnedParticipant.name);
+      const participantName = this.pinnedParticipant.name;
+      const participantToUnpin = this.pinnedParticipant;
+      
+      try {
+        // Move video back to grid before unpinning
+        await this.movePinnedVideoBackToGrid(participantToUnpin);
+        
+        this.pinnedParticipant = null;
+        this.isPinnedVideoActive = false;
+        this.toastService.info('Video Unpinned', `${participantName}'s video has been unpinned`);
+        
+        // Force change detection
+        this.cdr.detectChanges();
+      } catch (error) {
+        console.error('Failed to unpin participant:', error);
+        // Still reset the state even if there was an error
+        this.pinnedParticipant = null;
+        this.isPinnedVideoActive = false;
+        this.cdr.detectChanges();
+      }
+    }
+  }
+
+  private async movePinnedVideoToMainArea(participant: Participant): Promise<void> {
+    try {
+      console.log('Moving video to pinned area for participant:', participant.name);
+      
+      if (participant.id === this.currentUser?.id) {
+        // Handle local publisher - move from main grid to pinned area
+        await this.openTokService.republishToContainer('pinned-video-publisher', false);
+        console.log('Local publisher moved to pinned area');
+      } else {
+        // Handle remote subscriber - move from main grid to pinned area  
+        await this.openTokService.republishToContainer('pinned-video-publisher', true, participant.connectionId);
+        console.log('Remote subscriber moved to pinned area');
+      }
+
+      // Force video element attachment with retry mechanism
+      this.ensureVideoElementLoaded(participant);
+      
+    } catch (error) {
+      console.error('Failed to move video to pinned area:', error);
+      this.toastService.error('Pin Failed', 'Failed to pin participant video');
+      // Fallback: unpin the participant
+      this.unpinParticipant();
+    }
+  }
+
+  private handlePinnedVideoToggle(participant: Participant, isSubscriber: boolean): void {
+    console.log(`Handling pinned video toggle for ${participant.name} (subscriber: ${isSubscriber})`);
+    
+    const pinnedContainer = document.getElementById('pinned-video-publisher');
+    if (!pinnedContainer) {
+      console.warn('Pinned container not found');
+      return;
+    }
+    
+    // Force video element reattachment for pinned container after mute/unmute
+    setTimeout(() => {
+      try {
+        if (isSubscriber) {
+          this.openTokService.forceVideoElementAttachment('pinned-video-publisher', true, participant.connectionId);
+        } else {
+          this.openTokService.forceVideoElementAttachment('pinned-video-publisher', false);
+        }
+        console.log(`Video element reattached for pinned ${isSubscriber ? 'remote' : 'local'} participant: ${participant.name}`);
+      } catch (error) {
+        console.error('Failed to reattach pinned video element:', error);
+        // Fallback: try republishing to pinned container
+        if (isSubscriber) {
+          this.openTokService.republishToContainer('pinned-video-publisher', true, participant.connectionId)
+            .catch(republishError => console.error('Fallback republish failed:', republishError));
+        } else {
+          this.openTokService.republishToContainer('pinned-video-publisher', false)
+            .catch(republishError => console.error('Fallback republish failed:', republishError));
+        }
+      }
+    }, 200);
+  }
+
+  // Handle remote participant video toggle when pinned
+  private handleRemoteParticipantVideoToggle(participant: Participant): void {
+    if (this.isPinnedVideoActive && this.pinnedParticipant && this.pinnedParticipant.id === participant.id) {
+      console.log('Handling video toggle for pinned remote participant:', participant.name);
+      this.handlePinnedVideoToggle(participant, true);
+    }
+  }
+
+  private async movePinnedVideoBackToGrid(participant: Participant): Promise<void> {
+    try {
+      console.log('Moving video back to grid for participant:', participant.name);
+      
+      let originalContainerId: string;
+      let isSubscriber: boolean;
+      
+      if (participant.id === this.currentUser?.id) {
+        // Move publisher back to original container
+        originalContainerId = 'publisher';
+        isSubscriber = false;
+        
+        await this.openTokService.republishToContainer('publisher', false);
+        console.log('Local publisher moved back to grid');
+      } else {
+        // Move subscriber back to original container
+        originalContainerId = `subscriber-${participant.connectionId}`;
+        isSubscriber = true;
+        
+        await this.openTokService.republishToContainer(`subscriber-${participant.connectionId}`, true, participant.connectionId);
+        console.log('Remote subscriber moved back to grid');
+      }
+
+      // Clear pinned container
+      const pinnedContainer = document.getElementById('pinned-video-publisher');
+      if (pinnedContainer) {
+        pinnedContainer.innerHTML = '';
+      }
+
+      // Ensure video loads properly in the grid with retry mechanism
+      this.ensureGridVideoElementLoaded(participant, originalContainerId, isSubscriber);
+      
+    } catch (error) {
+      console.error('Failed to move video back to grid:', error);
+      // Even if there's an error, try to clean up
+      const pinnedContainer = document.getElementById('pinned-video-publisher');
+      if (pinnedContainer) {
+        pinnedContainer.innerHTML = '';
+      }
+      throw error; // Re-throw to be handled by unpin method
+    }
+  }
+
+  private ensureGridVideoElementLoaded(participant: Participant, containerId: string, isSubscriber: boolean): void {
+    let retryCount = 0;
+    const maxRetries = 7; // Increased for better success rate
+    
+    const checkGridVideoLoad = () => {
+      // Debug the current state
+      this.openTokService.debugVideoElementState(containerId);
+      
+      const container = document.getElementById(containerId);
+      const hasVideoElement = container?.querySelector('video');
+      const hasContent = container && container.children.length > 0;
+      const videoElement = hasVideoElement as HTMLVideoElement;
+      
+      // Enhanced video health check
+      const hasValidVideoSource = videoElement && (
+        (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) ||
+        videoElement.readyState >= 2 ||
+        !!videoElement.srcObject ||
+        videoElement.currentTime > 0
+      );
+
+      // Check container visibility
+      const containerVisible = container && 
+        container.style.display !== 'none' && 
+        container.offsetWidth > 0 && 
+        container.offsetHeight > 0;
+      
+      console.log(`Grid video load check ${retryCount + 1}/${maxRetries} for ${containerId}:`, {
+        hasContainer: !!container,
+        containerVisible: containerVisible,
+        hasContent: hasContent,
+        hasVideoElement: !!hasVideoElement,
+        hasValidVideoSource: hasValidVideoSource,
+        participantName: participant.name,
+        containerDimensions: container ? {
+          width: container.offsetWidth,
+          height: container.offsetHeight,
+          display: container.style.display
+        } : null,
+        videoDetails: videoElement ? {
+          readyState: videoElement.readyState,
+          networkState: videoElement.networkState,
+          videoWidth: videoElement.videoWidth,
+          videoHeight: videoElement.videoHeight,
+          currentTime: videoElement.currentTime,
+          paused: videoElement.paused,
+          hasSrcObject: !!videoElement.srcObject
+        } : null
+      });
+      
+      if (containerVisible && hasContent && hasVideoElement && hasValidVideoSource) {
+        console.log(`✅ Video element loaded successfully back in grid for ${participant.name}`);
+        this.toastService.success('Video Restored', `${participant.name}'s video is now visible in the grid`);
+        
+        // Ensure participant overlays are properly refreshed after successful restoration
+        this.refreshParticipantOverlays(containerId);
+        return; // Success - video is loaded in grid
+      }
+      
+      if (retryCount < maxRetries) {
+        retryCount++;
+        console.log(`🔄 Retrying grid video load for ${participant.name} (attempt ${retryCount})`);
+        
+        // Different retry strategies based on attempt number
+        if (retryCount <= 3) {
+          // First 3 attempts: Force video element reattachment
+          if (isSubscriber) {
+            this.openTokService.forceVideoElementAttachment(containerId, true, participant.connectionId);
+          } else {
+            this.openTokService.forceVideoElementAttachment(containerId, false);
+          }
+        } else if (retryCount <= 5) {
+          // Attempts 4-5: Try republishing again
+          console.log(`Attempt ${retryCount}: Re-republishing to container`);
+          if (isSubscriber) {
+            this.openTokService.republishToContainer(containerId, true, participant.connectionId)
+              .catch(error => console.warn('Retry republish failed:', error));
+          } else {
+            this.openTokService.republishToContainer(containerId, false)
+              .catch(error => console.warn('Retry republish failed:', error));
+          }
+        } else {
+          // Final attempts: Ensure container visibility and force attachment
+          console.log(`Attempt ${retryCount}: Final recovery attempt`);
+          if (container) {
+            container.style.display = 'block';
+            container.style.visibility = 'visible';
+            if (isSubscriber) {
+              this.openTokService.forceVideoElementAttachment(containerId, true, participant.connectionId);
+            } else {
+              this.openTokService.forceVideoElementAttachment(containerId, false);
+            }
+          }
+        }
+        
+        // Progressive delay with exponential backoff, capped at 4 seconds
+        const delay = Math.min(500 * retryCount, 4000);
+        setTimeout(checkGridVideoLoad, delay);
+      } else {
+        console.error(`❌ Failed to load video element in grid after ${maxRetries} retries for ${participant.name}`);
+        this.toastService.error('Video Restore Failed', `${participant.name}'s video unpinned but may not be visible in grid. Try refreshing.`);
+        
+        // Final debug attempt
+        this.openTokService.debugVideoElementState(containerId);
+        
+        // Last resort: ensure container is visible even if video isn't loading
+        if (container) {
+          container.style.display = 'block';
+          container.style.visibility = 'visible';
+        }
+        
+        // Ensure participant overlays are refreshed
+        this.refreshParticipantOverlays(containerId);
+      }
+    };
+    
+    // Start checking after DOM updates
+    setTimeout(checkGridVideoLoad, 400);
+  }
+
+  private refreshParticipantOverlays(containerId: string): void {
+    // Force Angular change detection to ensure overlays are properly updated
+    setTimeout(() => {
+      this.cdr.detectChanges();
+      
+      // Ensure overlay elements are properly positioned
+      const container = document.getElementById(containerId);
+      if (container) {
+        const overlayElements = container.querySelectorAll('.participant-overlay');
+        overlayElements.forEach(overlay => {
+          const element = overlay as HTMLElement;
+          // Force reflow to ensure proper positioning
+          element.offsetHeight;
+        });
+        
+        console.log(`Refreshed ${overlayElements.length} participant overlays for ${containerId}`);
+      }
+    }, 100);
+  }
+
+  private ensureVideoElementLoaded(participant: Participant): void {
+    let retryCount = 0;
+    const maxRetries = 5;
+    
+    const checkVideoLoad = () => {
+      // Debug the current state
+      this.openTokService.debugVideoElementState('pinned-video-publisher');
+      
+      const pinnedContainer = document.getElementById('pinned-video-publisher');
+      const hasVideoElement = pinnedContainer?.querySelector('video');
+      const hasContent = pinnedContainer && pinnedContainer.children.length > 0;
+      const videoElement = hasVideoElement as HTMLVideoElement;
+      
+      // Check if video is actually playing/has media
+      const hasValidVideoSource = videoElement && (
+        videoElement.videoWidth > 0 && videoElement.videoHeight > 0 ||
+        videoElement.readyState >= 2 ||
+        !!videoElement.srcObject
+      );
+      
+      console.log(`Video load check ${retryCount + 1}/${maxRetries}:`, {
+        hasContainer: !!pinnedContainer,
+        hasContent: hasContent,
+        hasVideoElement: !!hasVideoElement,
+        hasValidVideoSource: hasValidVideoSource,
+        participantName: participant.name,
+        videoDetails: videoElement ? {
+          readyState: videoElement.readyState,
+          networkState: videoElement.networkState,
+          videoWidth: videoElement.videoWidth,
+          videoHeight: videoElement.videoHeight,
+          hasSrcObject: !!videoElement.srcObject
+        } : null
+      });
+      
+      if (hasContent && hasVideoElement && hasValidVideoSource) {
+        console.log('Video element loaded and playing successfully in pinned area');
+        this.toastService.success('Video Pinned', `${participant.name}'s video is now pinned and ready`);
+        return; // Success - video is loaded and playing
+      }
+      
+      if (retryCount < maxRetries) {
+        retryCount++;
+        console.log(`Retrying video load for ${participant.name} (attempt ${retryCount})`);
+        
+        // Force video element reattachment with debugging
+        if (participant.id === this.currentUser?.id) {
+          console.log('Re-attaching publisher element...');
+          this.openTokService.forceVideoElementAttachment('pinned-video-publisher', false);
+        } else {
+          console.log(`Re-attaching subscriber element for ${participant.connectionId}...`);
+          this.openTokService.forceVideoElementAttachment('pinned-video-publisher', true, participant.connectionId);
+        }
+        
+        // Progressive delay with exponential backoff
+        setTimeout(checkVideoLoad, Math.min(500 * retryCount, 3000));
+      } else {
+        console.error('Failed to load video element in pinned area after multiple retries');
+        this.toastService.error('Video Load Failed', 'Failed to load video in pinned view. The video may still be pinned but not visible.');
+        
+        // Final debug attempt
+        this.openTokService.debugVideoElementState('pinned-video-publisher');
+      }
+    };
+    
+    // Start checking after a brief delay to allow DOM updates
+    setTimeout(checkVideoLoad, 300);
   }
 
   // Recording Timer Methods
