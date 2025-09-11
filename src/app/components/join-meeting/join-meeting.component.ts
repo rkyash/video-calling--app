@@ -54,12 +54,7 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
     await this.configService.loadConfig();
     this.originSiteUrl = this.configService.getConfig()?.originSiteUrl ?? '';
 
-    // Set up message listener immediately
-    window.addEventListener('message', this.receiveMessage.bind(this));
 
-    // Send ready message both on init and after window load
-    // this.sendReadyMessage();
-    // window.onload = () => this.sendReadyMessage();
 
     this.authService.loadUserProfile();
     var currentUser = this.authService.currentUser();
@@ -73,6 +68,16 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
       console.log('ngAfterViewInit - initializing media');
       await this.initializeMedia();
     }, 100);
+
+    setTimeout(async () => {
+      // Set up message listener immediately
+      window.addEventListener('message', this.receiveMessage.bind(this));
+
+      // Send ready message both on init and after window load
+      this.sendReadyMessage();
+      window.onload = () => this.sendReadyMessage();
+    }, 100);
+    
   }
 
   private sendReadyMessage(): void {
@@ -433,7 +438,7 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
       this.error = 'Failed to join meeting. Please check the meeting ID and try again.';
     } finally {
       this.isJoining = false;
-      this.participantName=''
+      this.participantName = ''
     }
   }
 
@@ -485,7 +490,7 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
     }
-    this.participantName="";
+    this.participantName = "";
     window.removeEventListener(
       'message',
       this.receiveMessage.bind(this)
