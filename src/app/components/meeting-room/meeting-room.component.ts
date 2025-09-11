@@ -8,6 +8,7 @@ import { MeetingService } from '../../services/meeting.service';
 import { ScreenshotService } from '../../services/screenshot.service';
 import { ToastService } from '../../services/toast.service';
 import { SettingsModalComponent } from '../settings-modal/settings-modal.component';
+import { ConfirmationModalComponent, ConfirmationModalConfig } from '../confirmation-modal/confirmation-modal.component';
 import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models/meeting.model';
 import { ScreenRecordingService } from 'src/app/services/screen-reording.service';
 import { AuthService } from 'src/app/services/auth.service';
@@ -15,7 +16,7 @@ import { AuthService } from 'src/app/services/auth.service';
 @Component({
   selector: 'app-meeting-room',
   standalone: true,
-  imports: [CommonModule, FormsModule, SettingsModalComponent],
+  imports: [CommonModule, FormsModule, SettingsModalComponent, ConfirmationModalComponent],
   templateUrl: "meeting-room.component.html",
   styleUrl: "meeting-room.component.scss"
 })
@@ -36,6 +37,16 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   isParticipantsOpen: boolean = false;
   isFullscreen: boolean = false;
   isSettingsOpen: boolean = false;
+  showLeaveConfirmation: boolean = false;
+  leaveConfirmationConfig: ConfirmationModalConfig = {
+    title: 'Leave Meeting',
+    message: 'Are you sure you want to leave the meeting?',
+    warningText: 'You will be disconnected from the video call and removed from the meeting.',
+    confirmText: 'Leave Meeting',
+    cancelText: 'Cancel',
+    icon: 'fas fa-sign-out-alt',
+    confirmButtonType: 'danger'
+  };
   isScreenShareActive: boolean = false;
   screenShareParticipant: Participant | null = null;
   isMoreMenuOpen: boolean = false;
@@ -494,47 +505,61 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     await this.initializeMeeting(participantName, joinAudioEnabled, joinVideoEnabled);
   }
 
-  async leaveMeeting(): Promise<void> {
-    const confirmLeave = confirm('Are you sure you want to leave the meeting?');
-    if (confirmLeave) {
-      // Show loading indicator
-      this.isDisconnecting = true;
+  leaveMeeting(): void {
+    // Show custom confirmation modal
+    this.showLeaveConfirmation = true;
+  }
+
+  onLeaveConfirm(): void {
+    this.performDisconnect();
+  }
+
+  onLeaveCancel(): void {
+    // Modal will be closed automatically by the component
+  }
+
+  onLeaveModalClose(): void {
+    this.showLeaveConfirmation = false;
+  }
+
+  private async performDisconnect(): Promise<void> {
+    // Show loading indicator
+    this.isDisconnecting = true;
+    
+    try {
+      console.log('Starting disconnect process...');
       
-      try {
-        console.log('Starting disconnect process...');
-        
-        // Call disconnect API and wait for response
-        await this.meetingService.disconnectParticipant();
-        console.log('API disconnect successful');
+      // Call disconnect API and wait for response
+      await this.meetingService.disconnectParticipant();
+      console.log('API disconnect successful');
 
-        // After getting API response, call participantLeft
-        this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
+      // After getting API response, call participantLeft
+      this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
 
-        // Disconnect from OpenTok session
-        this.openTokService.disconnect();
-        this.authService.logout();
-        
-        console.log('Disconnect process completed successfully');
-        
-        // Hide loading indicator before navigation
-        this.isDisconnecting = false;
-        
-        // Close the window after successful disconnect
-        this.router.navigate(['/']);
+      // Disconnect from OpenTok session
+      this.openTokService.disconnect();
+      this.authService.logout();
+      
+      console.log('Disconnect process completed successfully');
+      
+      // Hide loading indicator before navigation
+      this.isDisconnecting = false;
+      
+      // Close the window after successful disconnect
+      this.router.navigate(['/']);
 
-      } catch (error) {
-        console.error('Error during disconnect:', error);
-        
-        // Even if API call fails, still perform local cleanup and close
-        this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
-        this.openTokService.disconnect();
-        this.authService.logout();
-        
-        // Hide loading indicator before navigation
-        this.isDisconnecting = false;
-        
-        this.router.navigate(['/']);
-      }
+    } catch (error) {
+      console.error('Error during disconnect:', error);
+      
+      // Even if API call fails, still perform local cleanup and close
+      this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
+      this.openTokService.disconnect();
+      this.authService.logout();
+      
+      // Hide loading indicator before navigation
+      this.isDisconnecting = false;
+      
+      this.router.navigate(['/']);
     }
   }
 

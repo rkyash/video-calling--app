@@ -460,6 +460,15 @@
 </div>
 }
 
+<!-- Leave Meeting Confirmation Modal -->
+<app-confirmation-modal 
+    [isOpen]="showLeaveConfirmation"
+    [config]="leaveConfirmationConfig"
+    (confirm)="onLeaveConfirm()"
+    (cancel)="onLeaveCancel()"
+    (close)="onLeaveModalClose()">
+</app-confirmation-modal>
+
 <!-- Settings Modal -->
 <app-settings-modal [isOpen]="isSettingsOpen" (close)="closeSettings()"
     (settingsChange)="onSettingsChange($event)"></app-settings-modal>
