@@ -29,6 +29,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
   isConnecting: boolean = true;
   connectionError: string = '';
+  isDisconnecting: boolean = false;
   isRecording: boolean = false;
   isScreenRecording: boolean = false;
   isChatOpen: boolean = false;
@@ -496,9 +497,15 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   async leaveMeeting(): Promise<void> {
     const confirmLeave = confirm('Are you sure you want to leave the meeting?');
     if (confirmLeave) {
+      // Show loading indicator
+      this.isDisconnecting = true;
+      
       try {
+        console.log('Starting disconnect process...');
+        
         // Call disconnect API and wait for response
         await this.meetingService.disconnectParticipant();
+        console.log('API disconnect successful');
 
         // After getting API response, call participantLeft
         this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
@@ -506,15 +513,26 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
         // Disconnect from OpenTok session
         this.openTokService.disconnect();
         this.authService.logout();
+        
+        console.log('Disconnect process completed successfully');
+        
+        // Hide loading indicator before navigation
+        this.isDisconnecting = false;
+        
         // Close the window after successful disconnect
         this.router.navigate(['/']);
 
       } catch (error) {
         console.error('Error during disconnect:', error);
+        
         // Even if API call fails, still perform local cleanup and close
         this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
         this.openTokService.disconnect();
         this.authService.logout();
+        
+        // Hide loading indicator before navigation
+        this.isDisconnecting = false;
+        
         this.router.navigate(['/']);
       }
     }

@@ -435,6 +435,17 @@
 </div>
 }
 
+<!-- Disconnect Loading Overlay -->
+@if (isDisconnecting){
+<div class="loading-overlay">
+    <div class="loading-content">
+        <div class="spinner large"></div>
+        <h3>Leaving meeting...</h3>
+        <p>Please wait while we disconnect you from the meeting.</p>
+    </div>
+</div>
+}
+
 <!-- Error Overlay -->
 @if (connectionError){
 <div class="error-overlay">
