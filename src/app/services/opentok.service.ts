@@ -670,8 +670,9 @@ export class OpenTokService {
       //   this.endMeetingForAll();
       //   break;
       case 'signal:hostDisconnected':
-         // Host has left, end meeting for all participants         
-        this.endMeetingForAll();
+         // Host has left, end meeting for all participants 
+         if(!this.currentUser?.isHost)
+            this.endMeetingForAll();          
         break;
       case 'signal:participantJoined':
         // Update participant info when someone joins

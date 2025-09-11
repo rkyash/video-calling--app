@@ -16,114 +16,75 @@ import { ApiResponse } from '../models/api-response.model';
   providedIn: 'root'
 })
 export class ApiService {
-  // private readonly httpOptions = {
-  //   headers: new HttpHeaders({
-  //     'Content-Type': 'application/json'
-  //   })
-  // };
   private apiUrl: string = '';
+  private configLoaded: boolean = false;
 
   constructor(
     private http: HttpClient,
     private configService: ConfigService
   ) {
-    // this.configService.getConfigAsync()
-    //   .then(config => {
-    //     this.apiUrl = config.apiUrl;
-    //   })
-    //   .catch(() => {
-    //     this.apiUrl = '';
-    //   });
+    this.initializeConfig();
+  }
 
-      this.apiUrl = this.configService.getApiUrl();
+  private async initializeConfig(): Promise<void> {
+    try {
+      const config = await this.configService.getConfigAsync();
+      this.apiUrl = config.apiUrl;
+      this.configLoaded = true;
+      console.log(`API Service initialized with URL: ${this.apiUrl} (Environment: ${this.configService.getCurrentEnvironment()})`);
+    } catch (error) {
+      console.error('Failed to load API configuration, using fallback:', error);
+      this.apiUrl = 'http://localhost:5052/api';
+      this.configLoaded = true;
+    }
+  }
+
+  private async ensureConfigLoaded(): Promise<void> {
+    if (!this.configLoaded) {
+      await this.initializeConfig();
+    }
+  }
+
+  private async getApiUrl(): Promise<string> {
+    await this.ensureConfigLoaded();
+    return this.apiUrl;
   }
 
   createMeeting(meetingData: CreateMeetingRequest): Observable<CreateMeetingResponse> {
-    let url = `${this.apiUrl}/meetings`;
-    return this.http.post<CreateMeetingResponse>(url, meetingData);
+    return from(this.getApiUrl()).pipe(
+      switchMap(apiUrl => {
+        const url = `${apiUrl}/meetings`;
+        console.log(`Creating meeting with URL: ${url}`);
+        return this.http.post<CreateMeetingResponse>(url, meetingData);
+      })
+    );
   }
 
   joinMeeting(roomCode: string, joinData: JoinMeetingRequest = {}): Observable<JoinMeetingResponse> {
-    let url = `${this.apiUrl}/meetings/${roomCode}/join`;
-    return this.http.post<JoinMeetingResponse>(url, joinData);
+    return from(this.getApiUrl()).pipe(
+      switchMap(apiUrl => {
+        const url = `${apiUrl}/meetings/${roomCode}/join`;       
+        return this.http.post<JoinMeetingResponse>(url, joinData);
+      })
+    );
   }
 
   startRecording(roomCode: string, data: RecordingRequest): Observable<JoinMeetingResponse> {
-    let url = `${this.apiUrl}/meetings/${roomCode}/recordings/start`;
-    return this.http.post<JoinMeetingResponse>(url, data);
+    return from(this.getApiUrl()).pipe(
+      switchMap(apiUrl => {
+        const url = `${apiUrl}/meetings/${roomCode}/recordings/start`;     
+        return this.http.post<JoinMeetingResponse>(url, data);
+      })
+    );
   }
 
   disconnectParticipant(roomCode: string): Observable<ApiResponse<any>> {
-    let url = `${this.apiUrl}/meetings/${roomCode}/disconnect/`;
-    return this.http.post<ApiResponse<any>>(url,{});
+    return from(this.getApiUrl()).pipe(
+      switchMap(apiUrl => {
+        const url = `${apiUrl}/meetings/${roomCode}/disconnect/`;        
+        return this.http.post<ApiResponse<any>>(url, {});
+      })
+    );
   }
 
-  // private makeRequest<T>(
-  //   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
-  //   endpoint: string,
-  //   labelKey: keyof import('../config/app-config.interface').IApiLabels,
-  //   body?: any
-  // ): Observable<T> {
-  //   // Use switchMap to properly chain the config loading with HTTP request
-  //   return from(this.configService.getConfigAsync()).pipe(
-  //     switchMap(config => {
-  //       const url = this.configService.getFullApiUrl(endpoint);
-  //       const label = this.configService.getApiLabel(labelKey);
-  //       const timeoutMs = config.timeout || 30000;
-  //       const retryAttempts = config.retryAttempts || 3;
-
-  //       console.log(`[${label}] Making ${method} request to: ${url}`);
-
-  //       let request$: Observable<T>;
-
-  //       switch (method) {
-  //         case 'GET':
-  //           request$ = this.http.get<T>(url, this.httpOptions);
-  //           break;
-  //         case 'POST':
-  //           request$ = this.http.post<T>(url, body, this.httpOptions);
-  //           break;
-  //         case 'PUT':
-  //           request$ = this.http.put<T>(url, body, this.httpOptions);
-  //           break;
-  //         case 'DELETE':
-  //           request$ = this.http.delete<T>(url, this.httpOptions);
-  //           break;
-  //       }
-
-  //       return request$.pipe(
-  //         timeout(timeoutMs),
-  //         retry(retryAttempts),
-  //         catchError(error => {
-  //           console.error(`[${label}] API call failed:`, error);
-  //           return throwError(() => error);
-  //         })
-  //       );
-  //     }),
-  //     catchError(error => {
-  //       console.error('Failed to load configuration for API request:', error);
-  //       return throwError(() => error);
-  //     })
-  //   );
-  // }
-
-  // createMeeting(meetingData: CreateMeetingRequest): Observable<CreateMeetingResponse> {
-  //   return this.makeRequest<CreateMeetingResponse>('POST', 'meetings', 'createMeeting', meetingData);
-  // }
-
-  // joinMeeting(roomCode: string, joinData: JoinMeetingRequest = {}): Observable<JoinMeetingResponse> {
-  //   return this.makeRequest<JoinMeetingResponse>('POST', `meetings/${roomCode}/join`, 'joinMeeting', joinData);
-  // }
-
-  // endMeeting(meetingId: string): Observable<any> {
-  //   return this.makeRequest('DELETE', `meetings/${meetingId}`, 'endMeeting');
-  // }
-
-  // getSessionToken(meetingId: string): Observable<any> {
-  //   return this.makeRequest('GET', `meetings/${meetingId}/token`, 'getSessionToken');
-  // }
-
-  // uploadScreenshot(meetingId: string, screenshotData: any): Observable<any> {
-  //   return this.makeRequest('POST', `meetings/${meetingId}/screenshots`, 'uploadScreenshot', screenshotData);
-  // }
 }

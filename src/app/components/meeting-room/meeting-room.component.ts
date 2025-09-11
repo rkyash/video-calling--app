@@ -10,6 +10,7 @@ import { ToastService } from '../../services/toast.service';
 import { SettingsModalComponent } from '../settings-modal/settings-modal.component';
 import { Meeting, Participant, ChatMessage, JoinMeetingData } from '../../models/meeting.model';
 import { ScreenRecordingService } from 'src/app/services/screen-reording.service';
+import { AuthService } from 'src/app/services/auth.service';
 
 @Component({
   selector: 'app-meeting-room',
@@ -63,7 +64,8 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     private screenshotService: ScreenshotService,
     private toastService: ToastService,
     private screenRecordingService: ScreenRecordingService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private authService: AuthService
   ) { }
 
   async ngOnInit(): Promise<void> {
@@ -503,7 +505,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
         // Disconnect from OpenTok session
         this.openTokService.disconnect();
-
+        this.authService.logout();
         // Close the window after successful disconnect
         this.router.navigate(['/']);
 
@@ -512,6 +514,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
         // Even if API call fails, still perform local cleanup and close
         this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
         this.openTokService.disconnect();
+        this.authService.logout();
         this.router.navigate(['/']);
       }
     }

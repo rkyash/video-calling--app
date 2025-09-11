@@ -39,6 +39,7 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
   selectedVideoDevice: string = '';
 
   currentDevices: any = null;
+  private configLoaded: boolean = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -51,15 +52,26 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
 
   async ngOnInit(): Promise<void> {
     this.meetingId = this.route.snapshot.paramMap.get('id') || '';
-    await this.configService.loadConfig();
-    this.originSiteUrl = this.configService.getConfig()?.originSiteUrl ?? '';
-
+    this.initializeConfig();
 
 
     this.authService.loadUserProfile();
     var currentUser = this.authService.currentUser();
 
     this.participantName = currentUser?.fullName || '';
+  }
+
+  private async initializeConfig(): Promise<void> {
+    try {
+      const config = await this.configService.getConfigAsync();
+      this.originSiteUrl = config.originSiteUrl;
+      this.configLoaded = true;
+      console.log(`originSiteUrl initialized with URL: ${this.originSiteUrl} (Environment: ${this.configService.getCurrentEnvironment()})`);
+    } catch (error) {
+      console.error('Failed to load API configuration, using fallback:', error);
+      this.originSiteUrl = 'http://localhost:5052/api';
+      this.configLoaded = true;
+    }
   }
 
   async ngAfterViewInit(): Promise<void> {
@@ -77,7 +89,7 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
       this.sendReadyMessage();
       window.onload = () => this.sendReadyMessage();
     }, 100);
-    
+
   }
 
   private sendReadyMessage(): void {
