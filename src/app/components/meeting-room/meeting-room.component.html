@@ -109,7 +109,8 @@
             </div>
 
             <!-- Normal Grid Layout (when no screen sharing) -->
-            <div *ngIf="!isScreenShareActive" class="video-grid" #videoGrid [ngClass]="getVideoGridClass()">
+            @if(!isScreenShareActive){
+            <div class="video-grid" #videoGrid [ngClass]="getVideoGridClass()">
                 <!-- Local Video -->
                 <div class="video-participant local-video">
                     <div class="video-container">
@@ -189,6 +190,7 @@
                     </div>
                 </div>
             </div>
+            }
         </div>
 
         <!-- Chat Sidebar -->
@@ -200,7 +202,7 @@
                 </button>
             </div>
 
-            <div class="chat-messages" #chatMessagesContainer>               
+            <div class="chat-messages" #chatMessagesContainer>
                 <div *ngFor="let message of chatMessages; trackBy: trackByMessageId" class="chat-message"
                     [ngClass]="{ 'system-message': message.type === 'system', 'own-message': message.participantId === currentUser?.id }">
                     @if(message.type === 'text'){
