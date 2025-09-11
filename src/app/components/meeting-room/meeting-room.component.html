@@ -344,11 +344,13 @@
                         <span>Participants ({{ participants.length }})</span>
                     </button>
 
-                    <button class="more-menu-item" (click)="toggleRecording(); toggleMoreMenu()"
-                        [class.active]="isRecording" title="Toggle Recording" *ngIf="currentUser?.isHost">
+                    @if(currentUser?.isHost){
+                    <button class="more-menu-item" (click)="toggleScreenRecording(); toggleMoreMenu()"
+                        [class.active]="isScreenRecording" title="Toggle Screen Recording">
                         <i class="fas fa-record-vinyl"></i>
-                        <span>{{ isRecording ? 'Stop' : 'Start' }} Recording</span>
+                        <span>{{ isRecording ? 'Stop' : 'Start' }}Screen Recording</span>
                     </button>
+                    }
 
                     <button class="more-menu-item" (click)="openSettings(); toggleMoreMenu()" title="Settings">
                         <i class="fas fa-cog"></i>
@@ -466,12 +468,8 @@
 }
 
 <!-- Leave Meeting Confirmation Modal -->
-<app-confirmation-modal 
-    [isOpen]="showLeaveConfirmation"
-    [config]="leaveConfirmationConfig"
-    (confirm)="onLeaveConfirm()"
-    (cancel)="onLeaveCancel()"
-    (close)="onLeaveModalClose()">
+<app-confirmation-modal [isOpen]="showLeaveConfirmation" [config]="leaveConfirmationConfig" (confirm)="onLeaveConfirm()"
+    (cancel)="onLeaveCancel()" (close)="onLeaveModalClose()">
 </app-confirmation-modal>
 
 <!-- Settings Modal -->
