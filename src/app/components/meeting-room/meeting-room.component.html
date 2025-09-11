@@ -57,9 +57,9 @@
                                     <span class="avatar-initials">{{ getParticipantInitials(currentUser?.name) }}</span>
                                 </div>
                             </div>
-                            <div class="participant-overlay" 
-                                 *ngIf="currentUser?.isAudioMuted || currentUser?.isVideoMuted"
-                                 [class.always-visible]="true">
+                            <div class="participant-overlay"
+                                *ngIf="currentUser?.isAudioMuted || currentUser?.isVideoMuted"
+                                [class.always-visible]="true">
                                 <span class="participant-name">You</span>
                                 <div class="participant-status">
                                     <span *ngIf="currentUser?.isAudioMuted" class="status-icon muted">
@@ -84,9 +84,9 @@
                                     <span class="avatar-initials">{{ getParticipantInitials(participant.name) }}</span>
                                 </div>
                             </div>
-                            <div class="participant-overlay" 
-                                 *ngIf="participant.isAudioMuted || participant.isVideoMuted || participant.isHost || participant.hasRaisedHand"
-                                 [class.always-visible]="true">
+                            <div class="participant-overlay"
+                                *ngIf="participant.isAudioMuted || participant.isVideoMuted || participant.isHost || participant.hasRaisedHand"
+                                [class.always-visible]="true">
                                 <span class="participant-name">{{ participant.name }}</span>
                                 <div class="participant-status">
                                     <span *ngIf="participant.isHost" class="status-icon host">
@@ -122,10 +122,10 @@
                             </div>
                             <div class="participant-name-large">{{ currentUser?.name }}</div>
                         </div>
-                        <div class="participant-overlay" 
-                             *ngIf="currentUser?.isVideoMuted || currentUser?.isAudioMuted || currentUser?.hasRaisedHand"
-                             [class.always-visible]="currentUser?.isVideoMuted"
-                             [class.hover-only]="!currentUser?.isVideoMuted">
+                        <div class="participant-overlay"
+                            *ngIf="currentUser?.isVideoMuted || currentUser?.isAudioMuted || currentUser?.hasRaisedHand"
+                            [class.always-visible]="currentUser?.isVideoMuted"
+                            [class.hover-only]="!currentUser?.isVideoMuted">
                             <span class="participant-name">{{ currentUser?.name }} (You)</span>
                             <div class="participant-status">
                                 <span *ngIf="currentUser?.isAudioMuted" class="status-icon muted">
@@ -148,33 +148,44 @@
                     <div class="video-container">
                         <div [id]="'subscriber-' + participant.connectionId" class="video-element"
                             [style.display]="participant.isVideoMuted ? 'none' : 'block'"></div>
-                        <!-- Video disabled overlay - show participant name/avatar like Google Meet -->
-                        <div class="video-disabled-overlay" *ngIf="participant.isVideoMuted">
+                        <!-- Video disabled overlay - show participant name/avatar -->
+                        @if(participant.isVideoMuted){
+                        <div class="video-disabled-overlay">
                             <div class="participant-avatar">
                                 <span class="avatar-initials">{{ getParticipantInitials(participant.name) }}</span>
                             </div>
                             <div class="participant-name-large">{{ participant.name }}</div>
                         </div>
-                        <div class="participant-overlay" 
-                             *ngIf="participant.isVideoMuted || participant.isAudioMuted || participant.hasRaisedHand || participant.isHost"
-                             [class.always-visible]="participant.isVideoMuted"
-                             [class.hover-only]="!participant.isVideoMuted">
+                        }
+                        @if (participant.isAudioMuted || participant.isVideoMuted || participant.hasRaisedHand ||
+                        participant.isHost){
+                        <div class="participant-overlay" [class.always-visible]="participant.isVideoMuted"
+                            [class.hover-only]="!participant.isVideoMuted">
                             <span class="participant-name">{{ participant.name }}</span>
                             <div class="participant-status">
-                                <span *ngIf="participant.isHost" class="status-icon host">
+                                @if(participant.isHost){
+                                <span class="status-icon host">
                                     <i class="fas fa-crown"></i>
                                 </span>
-                                <span *ngIf="participant.isAudioMuted" class="status-icon muted">
+                                }
+                                @if (participant.isAudioMuted){
+                                <span class="status-icon muted">
                                     <i class="fas fa-microphone-slash"></i>
                                 </span>
-                                <span *ngIf="participant.isVideoMuted" class="status-icon muted">
+                                }
+                                @if (participant.isVideoMuted){
+                                <span class="status-icon muted">
                                     <i class="fas fa-video-slash"></i>
                                 </span>
-                                <span *ngIf="participant.hasRaisedHand" class="status-icon raised-hand">
+                                }
+                                @if(participant.hasRaisedHand){
+                                <span class="status-icon raised-hand">
                                     <i class="fas fa-hand-paper"></i>
                                 </span>
+                                }
                             </div>
                         </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -189,20 +200,24 @@
                 </button>
             </div>
 
-            <div class="chat-messages" #chatMessagesContainer>
+            <div class="chat-messages" #chatMessagesContainer>               
                 <div *ngFor="let message of chatMessages; trackBy: trackByMessageId" class="chat-message"
                     [ngClass]="{ 'system-message': message.type === 'system', 'own-message': message.participantId === currentUser?.id }">
-                    <div *ngIf="message.type === 'text'" class="message-content">
+                    @if(message.type === 'text'){
+                    <div class="message-content">
                         <div class="message-header">
                             <span class="sender-name">{{ message.participantName }}</span>
                             <span class="message-time">{{ formatTime(message.timestamp) }}</span>
                         </div>
                         <div class="message-text">{{ message.message }}</div>
                     </div>
-                    <div *ngIf="message.type === 'system'" class="system-content">
+                    }
+                    @if(message.type === 'system'){
+                    <div class="system-content">
                         <i class="fas fa-info-circle"></i>
                         {{ message.message }}
                     </div>
+                    }
                 </div>
             </div>
 
@@ -223,7 +238,7 @@
         <!-- Recording Indicator (Left Side) -->
         <div class="recording-info">
             @if(isRecording){
-            <div class="recording-indicator" >
+            <div class="recording-indicator">
                 <div class="recording-dot"></div>
                 <span class="recording-text">REC</span>
                 <span class="recording-timer">{{ recordingDuration }}</span>
@@ -341,20 +356,18 @@
             </div>
         </div> <!-- End controls-center -->
 
-        <!-- Right Spacer (to balance left recording indicator) -->
-        <div class="controls-spacer">
+        <!-- Right Side Indicators -->
+        <div class="controls-spacer"></div>
 
-            <!-- Recording Indicator (Left Side) -->
-            <div class="screen-recording-info">
-                @if (isScreenRecording){
-                <div class="recording-indicator">
-                    <div class="recording-dot"></div>
-                    <span class="recording-text">Screen REC</span>
-                    <span class="recording-timer">{{ screenRecordingDuration }}</span>
-                </div>
-            }
+        <!-- Screen Recording Indicator (Right Side) -->
+        <div class="screen-recording-info">
+            @if (isScreenRecording){
+            <div class="recording-indicator">
+                <div class="recording-dot"></div>
+                <span class="recording-text">Screen REC</span>
+                <span class="recording-timer">{{ screenRecordingDuration }}</span>
             </div>
-
+            }
         </div>
     </div>
 
@@ -375,19 +388,26 @@
                     <div class="participant-details">
                         <span class="participant-name">
                             {{ participant.name }}
-                            <span *ngIf="participant.id === currentUser?.id" class="you-label">(You)</span>
+                            @if (participant.id === currentUser?.id){
+                            <span class="you-label">(You)</span>
+                            }
                         </span>
                         <div class="participant-badges">
-                            <span *ngIf="participant.isHost" class="badge host-badge">
+                            @if (participant.isHost){
+                            <span class="badge host-badge">
                                 <i class="fas fa-crown"></i> Host
                             </span>
-                            <span *ngIf="participant.hasRaisedHand" class="badge raised-hand-badge">
+                            }
+                            @if (participant.hasRaisedHand){
+                            <span class="badge raised-hand-badge">
                                 <i class="fas fa-hand-paper"></i> Hand Raised
                             </span>
+                            }
                         </div>
                     </div>
                 </div>
-                <div class="participant-actions" *ngIf="currentUser?.isHost && participant.id !== currentUser?.id">
+                @if(currentUser?.isHost && participant.id !== currentUser?.id){
+                <div class="participant-actions">
                     <button class="action-button" (click)="muteParticipant(participant)" title="Mute Participant">
                         <i class="fas fa-microphone-slash"></i>
                     </button>
@@ -396,22 +416,26 @@
                         <i class="fas fa-user-times"></i>
                     </button>
                 </div>
+                }
             </div>
         </div>
     </div>
 </div>
 
 <!-- Loading Overlay -->
-<div class="loading-overlay" *ngIf="isConnecting">
+@if (isConnecting){
+<div class="loading-overlay">
     <div class="loading-content">
         <div class="spinner large"></div>
         <h3>Connecting to meeting...</h3>
         <p>Please wait while we set up your video call.</p>
     </div>
 </div>
+}
 
 <!-- Error Overlay -->
-<div class="error-overlay" *ngIf="connectionError">
+@if (connectionError){
+<div class="error-overlay">
     <div class="error-content">
         <i class="fas fa-exclamation-triangle"></i>
         <h3>Connection Error</h3>
@@ -421,6 +445,7 @@
         </button>
     </div>
 </div>
+}
 
 <!-- Settings Modal -->
 <app-settings-modal [isOpen]="isSettingsOpen" (close)="closeSettings()"

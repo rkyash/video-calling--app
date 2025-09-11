@@ -433,6 +433,7 @@ export class JoinMeetingComponent implements OnInit, OnDestroy, AfterViewInit {
       this.error = 'Failed to join meeting. Please check the meeting ID and try again.';
     } finally {
       this.isJoining = false;
+      this.participantName=''
     }
   }
 
