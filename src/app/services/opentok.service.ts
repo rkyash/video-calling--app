@@ -24,6 +24,7 @@ export class OpenTokService {
   private currentUser: Participant | null = null;
 
   private meetingService: any = null;
+  private meetingRoomComponent: any = null;
   private joinSettings: { audioEnabled?: boolean, videoEnabled?: boolean } = {};
 
   constructor() { }
@@ -31,6 +32,11 @@ export class OpenTokService {
   // Method to set meeting service to avoid circular dependency
   setMeetingService(meetingService: any): void {
     this.meetingService = meetingService;
+  }
+
+  // Method to set meeting room component reference
+  setMeetingRoomComponent(component: any): void {
+    this.meetingRoomComponent = component;
   }
 
   initializeSession(apiKey: string, sessionId: string, token: string, userName: string, isHost: boolean, joinSettings?: { audioEnabled?: boolean, videoEnabled?: boolean }): Promise<void> {
@@ -661,6 +667,13 @@ export class OpenTokService {
           }, 300);
         }
         break;
+      case 'signal:recordingStatus':
+        console.log(`Received recording status signal from ${event.from?.connectionId}:`, data);
+        // Update recording state for all participants
+        if (this.meetingRoomComponent && this.meetingRoomComponent.handleRecordingStatusSignal) {
+          this.meetingRoomComponent.handleRecordingStatusSignal(data.isRecording, data.message, data.recordingStartTime);
+        }
+        break;
       case 'signal:chat':
         // Handle incoming chat messages
         this.handleChatMessage(data, event.from?.connectionId);
@@ -681,18 +694,35 @@ export class OpenTokService {
       case 'signal:requestParticipantInfo':
         // Send our info to the requesting participant
         if (this.currentUser && this.session) {
-          this.sendSignal('participantInfoResponse', {
+          const responseData: any = {
             name: this.currentUser.name,
             isHost: this.currentUser.isHost,
             isAudioMuted: this.currentUser.isAudioMuted,
             isVideoMuted: this.currentUser.isVideoMuted,
             connectionId: this.currentUser.connectionId
-          });
+          };
+          
+          // If this is the host and recording is active, include recording status
+          if (this.currentUser.isHost && this.meetingRoomComponent) {
+            responseData.isRecording = this.meetingRoomComponent.isRecording;
+            responseData.recordingStartTime = this.meetingRoomComponent.recordingStartTime?.toISOString() || null;
+          }
+          
+          this.sendSignal('participantInfoResponse', responseData);
         }
         break;
       case 'signal:participantInfoResponse':
         // Update participant info from response
         this.updateParticipantInfo(event.from?.connectionId || '', data);
+        
+        // If response is from host and includes recording status, update recording state for late-joining participant
+        if (data.isHost && data.isRecording !== undefined && this.meetingRoomComponent) {
+          console.log('Received recording status from host for late-joining participant:', {
+            isRecording: data.isRecording,
+            recordingStartTime: data.recordingStartTime
+          });
+          this.meetingRoomComponent.handleRecordingStatusSignal(data.isRecording, 'Recording in progress', data.recordingStartTime);
+        }
         break;
     }
   }
@@ -1081,6 +1111,17 @@ export class OpenTokService {
         })
       });
     }
+  }
+
+  broadcastRecordingStatus(isRecording: boolean, message: string, recordingStartTime?: Date): void {
+    console.log('Broadcasting recording status:', { isRecording, message, recordingStartTime });
+    this.sendSignal('recordingStatus', {
+      isRecording: isRecording,
+      message: message,
+      hostName: this.currentUser?.name || 'Host',
+      timestamp: new Date().toISOString(),
+      recordingStartTime: recordingStartTime?.toISOString() || null
+    });
   }
 
   muteParticipant(connectionId: string): void {

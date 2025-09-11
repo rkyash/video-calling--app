@@ -96,6 +96,9 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
     // Set up the meeting service reference for chat functionality
     this.openTokService.setMeetingService(this.meetingService);
+    
+    // Set up meeting room component reference for recording status signals
+    this.openTokService.setMeetingRoomComponent(this);
 
     // Set up click outside listener for more menu
     document.addEventListener('click', this.onDocumentClick.bind(this));
@@ -298,7 +301,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       }
     });
 
-    this.subscriptions.push(participantsSub, chatSub, recordingSub, connectionSub, errorSub);
+    this.subscriptions.push(participantsSub, chatSub, recordingSub, screenRecordingSub, connectionSub, errorSub);
   }
 
   getVideoGridClass(): string {
@@ -398,8 +401,12 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     if (this.currentUser?.isHost) {
       if (this.isRecording) {
         this.meetingService.stopRecording();
+        // Broadcast recording stop to all participants
+        this.openTokService.broadcastRecordingStatus(false, 'Recording stopped by host');
       } else {
         this.meetingService.startRecording();
+        // Broadcast recording start to all participants with the current recording start time
+        this.openTokService.broadcastRecordingStatus(true, 'Recording started by host', this.recordingStartTime || new Date());
       }
     }
   }
@@ -592,6 +599,31 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     }, 1000);
   }
 
+  // Synchronized recording timer that uses the host's start time
+  private startSynchronizedRecordingTimer(): void {
+    // Stop any existing timer
+    if (this.recordingTimer) {
+      clearInterval(this.recordingTimer);
+      this.recordingTimer = null;
+    }
+
+    // Calculate current duration based on host's start time
+    if (this.recordingStartTime) {
+      const elapsed = Date.now() - this.recordingStartTime.getTime();
+      this.recordingDuration = this.formatRecordingDuration(elapsed);
+    } else {
+      this.recordingDuration = '00:00';
+    }
+
+    // Update timer every second using host's start time
+    this.recordingTimer = setInterval(() => {
+      if (this.recordingStartTime) {
+        const elapsed = Date.now() - this.recordingStartTime.getTime();
+        this.recordingDuration = this.formatRecordingDuration(elapsed);
+      }
+    }, 1000);
+  }
+
   private stopRecordingTimer(): void {
     if (this.recordingTimer) {
       clearInterval(this.recordingTimer);
@@ -643,5 +675,31 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     }
 
     return `${mm}:${ss}`;
+  }
+
+  // Handle recording status signals from other participants
+  handleRecordingStatusSignal(isRecording: boolean, message: string, recordingStartTime?: string): void {
+    console.log(`Received recording status signal: ${message}`, { isRecording, recordingStartTime });
+    
+    // Update local recording state to match the signal
+    this.isRecording = isRecording;
+    
+    // Start or stop the recording timer based on the signal
+    if (isRecording && recordingStartTime) {
+      // Use the host's recording start time for synchronization
+      this.recordingStartTime = new Date(recordingStartTime);
+      this.startSynchronizedRecordingTimer();
+      this.toastService.info('Recording', message || 'Recording started');
+    } else if (isRecording) {
+      // Fallback if no start time provided
+      this.startRecordingTimer();
+      this.toastService.info('Recording', message || 'Recording started');
+    } else {
+      this.stopRecordingTimer();
+      this.toastService.info('Recording', message || 'Recording stopped');
+    }
+    
+    // Force change detection
+    this.cdr.detectChanges();
   }
 }
