@@ -133,9 +133,6 @@ export class OpenTokService {
             this.updateParticipant(event.stream.connection.connectionId, { 
               isVideoMuted: !event.stream.hasVideo 
             });
-            
-            // Force update video element visibility for remote participants
-            this.updateVideoElementVisibility(event.stream.connection.connectionId, event.stream.hasVideo);
           }
           if (event.changedProperty === 'hasAudio') {
             console.log(`Audio property changed for ${event.stream.connection.connectionId}: hasAudio = ${event.stream.hasAudio}`);
@@ -299,14 +296,49 @@ export class OpenTokService {
   }
 
   private subscribeToStream(stream: OT.Stream, _isHost: boolean): void {
+    console.log(`Attempting to subscribe to stream for connection: ${stream.connection.connectionId}`);
+    console.log(`Stream has video: ${stream.hasVideo}, Stream has audio: ${stream.hasAudio}`);
+    console.log(`Stream videoType: ${stream.videoType}, Stream name: ${stream.name}`);
+    
     const subscriberContainer = document.getElementById(`subscriber-${stream.connection.connectionId}`);
 
     if (!subscriberContainer) {
       console.error(`Subscriber container not found for ${stream.connection.connectionId}`);
+      console.log('Available DOM elements with subscriber- prefix:', 
+        Array.from(document.querySelectorAll('[id*="subscriber-"]')).map(el => el.id));
+      
+      // Multiple retry attempts with longer delays
+      let retryCount = 0;
+      const maxRetries = 5;
+      
+      const retrySubscription = () => {
+        retryCount++;
+        console.log(`Retry attempt ${retryCount}/${maxRetries} for ${stream.connection.connectionId}`);
+        
+        const retryContainer = document.getElementById(`subscriber-${stream.connection.connectionId}`);
+        if (retryContainer) {
+          console.log(`Retry ${retryCount}: Found subscriber container, attempting to subscribe`);
+          this.subscribeToStreamWithContainer(stream, retryContainer);
+        } else if (retryCount < maxRetries) {
+          console.log(`Retry ${retryCount}: Still no container, trying again in ${retryCount * 500}ms`);
+          setTimeout(retrySubscription, retryCount * 500);
+        } else {
+          console.error(`Failed to find subscriber container after ${maxRetries} retries for ${stream.connection.connectionId}`);
+        }
+      };
+      
+      setTimeout(retrySubscription, 500);
       return;
     }
 
-    const subscriber = this.session?.subscribe(stream, subscriberContainer, {
+    this.subscribeToStreamWithContainer(stream, subscriberContainer);
+  }
+
+  private subscribeToStreamWithContainer(stream: OT.Stream, container: HTMLElement): void {
+    console.log(`Creating subscriber for ${stream.connection.connectionId} in container:`, container.id);
+    console.log(`Container dimensions: ${container.offsetWidth}x${container.offsetHeight}`);
+    
+    const subscriber = this.session?.subscribe(stream, container, {
       width: '100%',
       height: '100%',
       insertMode: 'append',
@@ -316,6 +348,8 @@ export class OpenTokService {
     });
 
     if (subscriber) {
+      console.log(`Subscriber created successfully for ${stream.connection.connectionId}`);
+      
       // Add subscriber event listeners for debugging audio issues
       subscriber.on('audioLevelUpdated', (event) => {
         console.log(`Audio level for ${stream.connection.connectionId}:`, event.audioLevel);
@@ -337,13 +371,177 @@ export class OpenTokService {
         console.log(`Unsubscribed from audio for ${stream.connection.connectionId}:`, event);
       });
 
+      // Add video-specific event handlers for debugging
+      subscriber.on('subscribeToVideo', (event) => {
+        console.log(`Subscribed to video for ${stream.connection.connectionId}:`, event);
+        console.log(`Video element created:`, subscriber.element);
+        
+        // Debug the video element visibility
+        setTimeout(() => {
+          const videoElement = subscriber.element?.querySelector('video');
+          if (videoElement) {
+            console.log(`Video element for ${stream.connection.connectionId}:`, {
+              display: videoElement.style.display,
+              visibility: videoElement.style.visibility,
+              width: videoElement.offsetWidth,
+              height: videoElement.offsetHeight,
+              videoWidth: videoElement.videoWidth,
+              videoHeight: videoElement.videoHeight
+            });
+          }
+        }, 100);
+      });
+
+      subscriber.on('unsubscribeFromVideo', (event) => {
+        console.log(`Unsubscribed from video for ${stream.connection.connectionId}:`, event);
+      });
+
+      subscriber.on('videoEnabled', (event) => {
+        console.log(`Video enabled for ${stream.connection.connectionId}:`, event);
+        // Update participant state when video is enabled
+        this.updateParticipant(stream.connection.connectionId, { isVideoMuted: false });
+        
+        // Debug DOM state after video enabled
+        setTimeout(() => {
+          const videoContainer = document.getElementById(`subscriber-${stream.connection.connectionId}`);
+          if (videoContainer) {
+            const videoElement = videoContainer.querySelector('video');
+            console.log(`Video container DOM state for ${stream.connection.connectionId}:`, {
+              display: videoContainer.style.display,
+              computedDisplay: window.getComputedStyle(videoContainer).display,
+              visibility: videoContainer.style.visibility,
+              computedVisibility: window.getComputedStyle(videoContainer).visibility,
+              offsetWidth: videoContainer.offsetWidth,
+              offsetHeight: videoContainer.offsetHeight,
+              hasVideoElement: !!videoElement,
+              innerHTML: videoContainer.innerHTML.length > 0,
+              containerChildren: videoContainer.children.length,
+              videoElementState: videoElement ? {
+                videoWidth: videoElement.videoWidth,
+                videoHeight: videoElement.videoHeight,
+                readyState: videoElement.readyState,
+                srcObject: !!videoElement.srcObject,
+                currentTime: videoElement.currentTime,
+                paused: videoElement.paused,
+                muted: videoElement.muted,
+                style: {
+                  display: videoElement.style.display,
+                  visibility: videoElement.style.visibility,
+                  width: videoElement.style.width,
+                  height: videoElement.style.height
+                }
+              } : null
+            });
+            
+            // Debug the subscriber object state
+            const subscriberObj = this.subscribers.get(stream.connection.connectionId);
+            if (subscriberObj) {
+              console.log(`Subscriber object state for ${stream.connection.connectionId}:`, {
+                subscriberExists: true,
+                element: !!subscriberObj.element,
+                stream: !!subscriberObj.stream,
+                streamHasVideo: subscriberObj.stream?.hasVideo,
+                streamVideoType: subscriberObj.stream?.videoType,
+                subscriberVideoEnabled: !subscriberObj.restrictFrameRate,
+                id: subscriberObj.id
+              });
+            } else {
+              console.error(`Subscriber object not found for ${stream.connection.connectionId}`);
+            }
+            
+            // Force container visibility when video is enabled
+            console.log(`Ensuring video container visibility for ${stream.connection.connectionId}`);
+            videoContainer.style.display = 'block';
+            videoContainer.style.visibility = 'visible';
+            
+            // Fix: Ensure the subscriber element is properly attached to the container
+            if (subscriberObj && subscriberObj.element) {
+              console.log(`Fixing subscriber element attachment for ${stream.connection.connectionId}`);
+              
+              // Clear the container first
+              videoContainer.innerHTML = '';
+              
+              // Re-attach the subscriber element
+              videoContainer.appendChild(subscriberObj.element);
+              
+              console.log(`Subscriber element re-attached. Container children: ${videoContainer.children.length}`);
+              
+              // Verify video element is now present
+              setTimeout(() => {
+                const videoElement = videoContainer.querySelector('video');
+                console.log(`Video element verification for ${stream.connection.connectionId}:`, {
+                  hasVideoElement: !!videoElement,
+                  containerChildren: videoContainer.children.length,
+                  videoElementSrc: videoElement ? !!videoElement.srcObject : null
+                });
+              }, 100);
+            }
+          } else {
+            console.error(`Video container not found in DOM for ${stream.connection.connectionId}`);
+          }
+        }, 100);
+      });
+
+      subscriber.on('videoDisabled', (event) => {
+        console.log(`Video disabled for ${stream.connection.connectionId}:`, event);
+        // Update participant state when video is disabled
+        this.updateParticipant(stream.connection.connectionId, { isVideoMuted: true });
+      });
+
+      subscriber.on('connected', (event) => {
+        console.log(`Subscriber connected for ${stream.connection.connectionId}:`, event);
+        console.log(`Initial stream state - hasVideo: ${stream.hasVideo}, hasAudio: ${stream.hasAudio}`);
+        
+        // Set initial video state based on stream properties
+        this.updateParticipant(stream.connection.connectionId, { 
+          isVideoMuted: !stream.hasVideo,
+          isAudioMuted: !stream.hasAudio
+        });
+        
+        // Verify the video element was created properly
+        setTimeout(() => {
+          const videoElement = subscriber.element?.querySelector('video');
+          console.log(`Subscriber video element check for ${stream.connection.connectionId}:`, {
+            element: !!videoElement,
+            hasVideoTracks: !!videoElement?.videoWidth,
+            dimensions: videoElement ? `${videoElement.videoWidth}x${videoElement.videoHeight}` : 'none'
+          });
+        }, 200);
+      });
+
       this.subscribers.set(stream.connection.connectionId, subscriber);
+      
+      // Ensure the subscriber element is properly attached to the container
+      setTimeout(() => {
+        if (subscriber.element && container) {
+          console.log(`Ensuring subscriber element is attached for ${stream.connection.connectionId}`);
+          
+          // Check if the element is already in the container
+          if (!container.contains(subscriber.element)) {
+            console.log(`Subscriber element not in container, re-attaching for ${stream.connection.connectionId}`);
+            container.innerHTML = ''; // Clear any existing content
+            container.appendChild(subscriber.element);
+          }
+          
+          // Verify attachment
+          const videoElement = container.querySelector('video');
+          console.log(`Initial subscriber attachment verification for ${stream.connection.connectionId}:`, {
+            elementAttached: container.contains(subscriber.element),
+            hasVideoElement: !!videoElement,
+            containerChildren: container.children.length
+          });
+        }
+      }, 200);
       
       // Check if participant already exists before adding
       const existingParticipant = this.participants.find(p => p.connectionId === stream.connection.connectionId);
       if (!existingParticipant) {
         this.addParticipant(stream.connection, false); // Default to non-host, will be updated by signal
       }
+      
+      console.log(`Subscriber stored in map for ${stream.connection.connectionId}`);
+    } else {
+      console.error(`Failed to create subscriber for ${stream.connection.connectionId}`);
     }
   }
 
@@ -424,7 +622,7 @@ export class OpenTokService {
   }
 
   private handleSignal(event: any): void {
-    const data = JSON.parse(event.data || '{}');
+     const data = this.safeJsonParse(event.data);
 
     switch (event.type) {
       case 'signal:raiseHand':
@@ -434,11 +632,22 @@ export class OpenTokService {
         this.updateParticipant(event.from?.connectionId || '', { isAudioMuted: data.muted });
         break;
       case 'signal:muteVideo':
-        console.log(`Received video mute signal from ${event.from?.connectionId}:`, data.muted);
+        console.log(`Received video mute signal from ${event.from?.connectionId}:`, {
+          fromConnectionId: event.from?.connectionId,
+          muted: data.muted,
+          signalData: data
+        });
         this.updateParticipant(event.from?.connectionId || '', { isVideoMuted: data.muted });
         
-        // Update video element visibility using the helper method
-        this.updateVideoElementVisibility(event.from?.connectionId || '', !data.muted);
+        // Additional debug: log the participant state after update
+        setTimeout(() => {
+          const updatedParticipant = this.participants.find(p => p.connectionId === event.from?.connectionId);
+          console.log(`Updated participant state after video signal:`, {
+            connectionId: event.from?.connectionId,
+            participant: updatedParticipant,
+            isVideoMuted: updatedParticipant?.isVideoMuted
+          });
+        }, 50);
         break;
       case 'signal:screenShare':
         console.log(`Received screen share signal from ${event.from?.connectionId}:`, data.sharing);
@@ -487,33 +696,46 @@ export class OpenTokService {
     }
   }
 
+  private safeJsonParse(data: any): any {
+  try {
+    return typeof data === 'string' ? JSON.parse(data) : data;
+  } catch (error) {
+    console.warn('Received non-JSON signal data:', data);
+    return {};  // Fallback to empty object
+  }
+}
+
   private updateParticipant(connectionId: string, updates: Partial<Participant>): void {
     const participantIndex = this.participants.findIndex(p => p.connectionId === connectionId);
     if (participantIndex !== -1) {
+      const oldParticipant = { ...this.participants[participantIndex] };
       this.participants[participantIndex] = { ...this.participants[participantIndex], ...updates };
-      this.participantsSubject.next([...this.participants]);
+      
+      // Enhanced debug logging for video state changes
+      if (updates.isVideoMuted !== undefined) {
+        console.log(`Video state update for participant:`, {
+          connectionId,
+          participantName: this.participants[participantIndex].name,
+          oldVideoMuted: oldParticipant.isVideoMuted,
+          newVideoMuted: updates.isVideoMuted,
+          finalVideoMuted: this.participants[participantIndex].isVideoMuted
+        });
+      }
+      
+      // Force state propagation with new array reference
+      const updatedParticipants = [...this.participants];
+      this.participantsSubject.next(updatedParticipants);
+      
+      console.log(`Participant updated - total participants:`, updatedParticipants.length);
+    } else {
+      console.warn(`Attempted to update non-existent participant:`, {
+        connectionId,
+        updates,
+        existingParticipants: this.participants.map(p => ({ id: p.connectionId, name: p.name }))
+      });
     }
   }
 
-  private updateVideoElementVisibility(connectionId: string, hasVideo: boolean): void {
-    // Update visibility for remote participant video elements
-    setTimeout(() => {
-      const subscriberElement = document.getElementById(`subscriber-${connectionId}`);
-      if (subscriberElement) {
-        subscriberElement.style.display = hasVideo ? 'block' : 'none';
-        console.log(`Updated video element visibility for ${connectionId}: ${hasVideo ? 'visible' : 'hidden'}`);
-      }
-      
-      // Update local video element if this is the current user
-      if (this.currentUser && connectionId === this.currentUser.connectionId) {
-        const publisherElement = document.getElementById('publisher');
-        if (publisherElement) {
-          publisherElement.style.display = hasVideo ? 'block' : 'none';
-          console.log(`Updated local video element visibility: ${hasVideo ? 'visible' : 'hidden'}`);
-        }
-      }
-    }, 50);
-  }
 
   private updateParticipantInfo(connectionId: string, data: any): void {
     const participantIndex = this.participants.findIndex(p => p.connectionId === connectionId);
@@ -612,9 +834,6 @@ export class OpenTokService {
       // Update local state immediately
       this.currentUser.isVideoMuted = !wasVideoMuted;
       
-      // Update local video element visibility immediately
-      this.updateVideoElementVisibility(this.currentUser.connectionId, willEnableVideo);
-      
       // Send signal to other participants
       this.sendSignal('muteVideo', { muted: this.currentUser.isVideoMuted });
       
@@ -625,18 +844,14 @@ export class OpenTokService {
         signalSent: { muted: this.currentUser.isVideoMuted }
       });
       
-      // Force participants update to ensure overlay visibility changes
+      // Force participants update to trigger Angular template updates
       this.participantsSubject.next([...this.participants]);
       
-      // Additional delayed update to ensure UI changes are reflected
+      // Additional delayed update to ensure state synchronization
       setTimeout(() => {
-        console.log('Video toggle follow-up - currentUser state:', this.currentUser);
-        // Ensure the video element state is still correct
-        if (this.currentUser) {
-          this.updateVideoElementVisibility(this.currentUser.connectionId, !this.currentUser.isVideoMuted);
-        }
+        console.log('Video toggle delayed update - currentUser state:', this.currentUser);
         this.participantsSubject.next([...this.participants]);
-      }, 200);
+      }, 100);
     }
   }
 

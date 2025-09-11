@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -62,7 +62,8 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     private meetingService: MeetingService,
     private screenshotService: ScreenshotService,
     private toastService: ToastService,
-    private screenRecordingService:ScreenRecordingService
+    private screenRecordingService: ScreenRecordingService,
+    private cdr: ChangeDetectorRef
   ) { }
 
   async ngOnInit(): Promise<void> {
@@ -184,7 +185,13 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     const participantsSub = this.openTokService.participants$.subscribe(participants => {
       console.log('Participants updated:', participants);
       this.participants = participants;
-      this.currentUser = this.openTokService.getCurrentUser();
+      
+      // Find current user in the participants array instead of getting a separate reference
+      const currentUserFromService = this.openTokService.getCurrentUser();
+      if (currentUserFromService) {
+        this.currentUser = this.participants.find(p => p.id === currentUserFromService.id) || currentUserFromService;
+      }
+      
       this.remoteParticipants = participants.filter(p => p.id !== this.currentUser?.id);
       
       console.log('Current user:', this.currentUser);
@@ -196,12 +203,31 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       }
       this.remoteParticipants.forEach(p => {
         console.log(`Remote participant ${p.name} video muted:`, p.isVideoMuted);
+        
+        // Debug DOM state for each remote participant
+        setTimeout(() => {
+          const videoContainer = document.getElementById(`subscriber-${p.connectionId}`);
+          if (videoContainer) {
+            const shouldBeVisible = !p.isVideoMuted;
+            const actualDisplay = window.getComputedStyle(videoContainer).display;
+            console.log(`DOM check for ${p.name} (${p.connectionId}):`, {
+              shouldBeVisible,
+              isVideoMuted: p.isVideoMuted,
+              actualDisplay,
+              expectedDisplay: shouldBeVisible ? 'block' : 'none',
+              matchesExpected: (shouldBeVisible && actualDisplay !== 'none') || (!shouldBeVisible && actualDisplay === 'none')
+            });
+          }
+        }, 50);
       });
 
       // Check if anyone is screen sharing
       const screenSharer = participants.find(p => p.isScreenSharing);
       this.isScreenShareActive = !!screenSharer;
       this.screenShareParticipant = screenSharer || null;
+      
+      // Force Angular change detection
+      this.cdr.detectChanges();
     });
 
     // Subscribe to chat messages
@@ -280,10 +306,19 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     console.log('Before toggle - current user video muted:', this.currentUser?.isVideoMuted);
     this.openTokService.toggleVideo();
     
-    // Add a small delay to check the state after toggle
+    // Force immediate state update and change detection
     setTimeout(() => {
+      // Refresh current user state from service
+      const updatedCurrentUser = this.openTokService.getCurrentUser();
+      if (updatedCurrentUser) {
+        this.currentUser = this.participants.find(p => p.id === updatedCurrentUser.id) || updatedCurrentUser;
+      }
+      
       console.log('After toggle - current user video muted:', this.currentUser?.isVideoMuted);
-    }, 100);
+      
+      // Force Angular to detect changes
+      this.cdr.detectChanges();
+    }, 50);
   }
 
   async toggleScreenShare(): Promise<void> {

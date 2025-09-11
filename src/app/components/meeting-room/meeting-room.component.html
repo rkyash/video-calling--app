@@ -57,7 +57,9 @@
                                     <span class="avatar-initials">{{ getParticipantInitials(currentUser?.name) }}</span>
                                 </div>
                             </div>
-                            <div class="participant-overlay">
+                            <div class="participant-overlay" 
+                                 *ngIf="currentUser?.isAudioMuted || currentUser?.isVideoMuted"
+                                 [class.always-visible]="true">
                                 <span class="participant-name">You</span>
                                 <div class="participant-status">
                                     <span *ngIf="currentUser?.isAudioMuted" class="status-icon muted">
@@ -82,7 +84,9 @@
                                     <span class="avatar-initials">{{ getParticipantInitials(participant.name) }}</span>
                                 </div>
                             </div>
-                            <div class="participant-overlay">
+                            <div class="participant-overlay" 
+                                 *ngIf="participant.isAudioMuted || participant.isVideoMuted || participant.isHost || participant.hasRaisedHand"
+                                 [class.always-visible]="true">
                                 <span class="participant-name">{{ participant.name }}</span>
                                 <div class="participant-status">
                                     <span *ngIf="participant.isHost" class="status-icon host">
@@ -118,7 +122,10 @@
                             </div>
                             <div class="participant-name-large">{{ currentUser?.name }}</div>
                         </div>
-                        <div class="participant-overlay">
+                        <div class="participant-overlay" 
+                             *ngIf="currentUser?.isVideoMuted || currentUser?.isAudioMuted || currentUser?.hasRaisedHand"
+                             [class.always-visible]="currentUser?.isVideoMuted"
+                             [class.hover-only]="!currentUser?.isVideoMuted">
                             <span class="participant-name">{{ currentUser?.name }} (You)</span>
                             <div class="participant-status">
                                 <span *ngIf="currentUser?.isAudioMuted" class="status-icon muted">
@@ -148,7 +155,10 @@
                             </div>
                             <div class="participant-name-large">{{ participant.name }}</div>
                         </div>
-                        <div class="participant-overlay">
+                        <div class="participant-overlay" 
+                             *ngIf="participant.isVideoMuted || participant.isAudioMuted || participant.hasRaisedHand || participant.isHost"
+                             [class.always-visible]="participant.isVideoMuted"
+                             [class.hover-only]="!participant.isVideoMuted">
                             <span class="participant-name">{{ participant.name }}</span>
                             <div class="participant-status">
                                 <span *ngIf="participant.isHost" class="status-icon host">
