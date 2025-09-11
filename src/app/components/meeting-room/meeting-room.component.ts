@@ -482,10 +482,47 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
     this.isSettingsOpen = false;
   }
 
-  onSettingsChange(settings: any): void {
+  async onSettingsChange(settings: any): Promise<void> {
     console.log('Settings changed:', settings);
-    // Apply the new settings to the OpenTok session
-    this.toastService.success('Settings Applied', 'Your settings have been updated');
+    
+    try {
+      let changesMade = false;
+      
+      // Apply camera changes
+      if (settings.selectedCamera !== undefined) {
+        await this.openTokService.switchCamera(settings.selectedCamera);
+        changesMade = true;
+        console.log('Camera switched to:', settings.selectedCamera);
+      }
+      
+      // Apply microphone changes  
+      if (settings.selectedMicrophone !== undefined) {
+        await this.openTokService.switchMicrophone(settings.selectedMicrophone);
+        changesMade = true;
+        console.log('Microphone switched to:', settings.selectedMicrophone);
+      }
+      
+      // Speaker changes would be handled at browser level (not OpenTok publisher)
+      if (settings.selectedSpeaker !== undefined) {
+        // Note: Speaker switching requires different approach - not implemented in OpenTok publisher
+        console.log('Speaker selection noted (browser-level change):', settings.selectedSpeaker);
+      }
+      
+      if (changesMade) {
+        this.toastService.success('Settings Applied', 'Camera and microphone settings have been updated in the ongoing call');
+        
+        // Force change detection to update UI
+        setTimeout(() => {
+          this.cdr.detectChanges();
+        }, 200);
+      } else {
+        this.toastService.info('Settings Saved', 'Settings have been saved for future use');
+      }
+      
+    } catch (error) {
+      console.error('Failed to apply device settings:', error);
+      this.toastService.error('Settings Error', 'Failed to apply some device settings. Please try again.');
+    }
   }
 
   toggleMoreMenu(): void {

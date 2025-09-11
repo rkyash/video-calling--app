@@ -1,7 +1,8 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ToastService } from '../../services/toast.service';
+import { OpenTokService } from '../../services/opentok.service';
 
 interface MediaDeviceInfo {
   deviceId: string;
@@ -427,7 +428,10 @@ export class SettingsModalComponent implements OnInit {
     enableAutoGainControl: true
   };
 
-  constructor(private toastService: ToastService) {}
+  constructor(
+    private toastService: ToastService,
+    private openTokService: OpenTokService
+  ) {}
 
   async ngOnInit(): Promise<void> {
     await this.loadMediaDevices();
@@ -478,19 +482,64 @@ export class SettingsModalComponent implements OnInit {
     }
   }
 
-  onCameraChange(): void {
-    // Preview logic can be added here
+  async onCameraChange(): Promise<void> {
     console.log('Camera changed to:', this.settings.selectedCamera);
+    try {
+      // Apply camera change immediately during ongoing call
+      await this.openTokService.switchCamera(this.settings.selectedCamera);
+      this.toastService.success('Camera Switched', 'Camera has been switched successfully');
+    } catch (error) {
+      console.error('Failed to switch camera:', error);
+      this.toastService.error('Camera Switch Failed', 'Failed to switch camera device');
+    }
   }
 
-  onMicrophoneChange(): void {
-    // Preview logic can be added here
+  async onMicrophoneChange(): Promise<void> {
     console.log('Microphone changed to:', this.settings.selectedMicrophone);
+    try {
+      // Apply microphone change immediately during ongoing call
+      await this.openTokService.switchMicrophone(this.settings.selectedMicrophone);
+      this.toastService.success('Microphone Switched', 'Microphone has been switched successfully');
+    } catch (error) {
+      console.error('Failed to switch microphone:', error);
+      this.toastService.error('Microphone Switch Failed', 'Failed to switch microphone device');
+    }
   }
 
   onSpeakerChange(): void {
-    // Preview logic can be added here
     console.log('Speaker changed to:', this.settings.selectedSpeaker);
+    // Speaker switching is handled at browser level via setSinkId if supported
+    this.applySpeakerChange(this.settings.selectedSpeaker);
+  }
+
+  private async applySpeakerChange(deviceId: string): Promise<void> {
+    try {
+      // Apply speaker change to all audio elements in the page
+      const audioElements = document.querySelectorAll('audio, video');
+      let changesMade = false;
+
+      for (let i = 0; i < audioElements.length; i++) {
+        const element = audioElements[i];
+        const audioElement = element as HTMLAudioElement | HTMLVideoElement;
+        if ('setSinkId' in audioElement && typeof audioElement.setSinkId === 'function') {
+          try {
+            await audioElement.setSinkId(deviceId);
+            changesMade = true;
+          } catch (error) {
+            console.warn('Failed to set sink ID for element:', error);
+          }
+        }
+      }
+
+      if (changesMade) {
+        this.toastService.success('Speaker Switched', 'Speaker output has been changed');
+      } else {
+        this.toastService.info('Speaker Setting Saved', 'Speaker preference has been saved (may not be supported by all browsers)');
+      }
+    } catch (error) {
+      console.error('Failed to switch speaker:', error);
+      this.toastService.error('Speaker Switch Failed', 'Failed to switch speaker device');
+    }
   }
 
   async testAudio(): Promise<void> {

@@ -1247,4 +1247,147 @@ export class OpenTokService {
     return this.currentUser;
   }
 
+  // Device switching methods
+  async switchCamera(deviceId: string): Promise<void> {
+    if (!this.publisher || !this.session) {
+      throw new Error('Publisher or session not available');
+    }
+
+    try {
+      console.log('Switching camera to:', deviceId);
+      
+      // Get current publisher settings
+      const currentSettings = {
+        name: this.publisher.stream?.name || this.currentUser?.name,
+        publishAudio: this.publisher.stream?.hasAudio !== false,
+        publishVideo: this.publisher.stream?.hasVideo !== false,
+        width: '100%',
+        height: '100%',
+        insertMode: 'append' as const,
+        showControls: false
+      };
+
+      // Stop current publisher
+      this.session.unpublish(this.publisher);
+      
+      // Get publisher container
+      const publisherContainer = document.getElementById('publisher');
+      if (!publisherContainer) {
+        throw new Error('Publisher container not found');
+      }
+
+      // Clear container
+      publisherContainer.innerHTML = '';
+
+      // Create new publisher with selected camera
+      this.publisher = OT.initPublisher(publisherContainer, {
+        ...currentSettings,
+        videoSource: deviceId || undefined
+      });
+
+      if (this.publisher) {
+        // Re-attach event listeners
+        this.attachPublisherEventListeners();
+        
+        // Publish the new stream
+        this.session.publish(this.publisher);
+        
+        console.log('Camera switched successfully to:', deviceId);
+      }
+    } catch (error) {
+      console.error('Failed to switch camera:', error);
+      throw error;
+    }
+  }
+
+  async switchMicrophone(deviceId: string): Promise<void> {
+    if (!this.publisher || !this.session) {
+      throw new Error('Publisher or session not available');
+    }
+
+    try {
+      console.log('Switching microphone to:', deviceId);
+      
+      // Get current publisher settings
+      const currentSettings = {
+        name: this.publisher.stream?.name || this.currentUser?.name,
+        publishAudio: this.publisher.stream?.hasAudio !== false,
+        publishVideo: this.publisher.stream?.hasVideo !== false,
+        width: '100%',
+        height: '100%',
+        insertMode: 'append' as const,
+        showControls: false
+      };
+
+      // Stop current publisher
+      this.session.unpublish(this.publisher);
+      
+      // Get publisher container
+      const publisherContainer = document.getElementById('publisher');
+      if (!publisherContainer) {
+        throw new Error('Publisher container not found');
+      }
+
+      // Clear container
+      publisherContainer.innerHTML = '';
+
+      // Create new publisher with selected microphone
+      this.publisher = OT.initPublisher(publisherContainer, {
+        ...currentSettings,
+        audioSource: deviceId || undefined
+      });
+
+      if (this.publisher) {
+        // Re-attach event listeners
+        this.attachPublisherEventListeners();
+        
+        // Publish the new stream
+        this.session.publish(this.publisher);
+        
+        console.log('Microphone switched successfully to:', deviceId);
+      }
+    } catch (error) {
+      console.error('Failed to switch microphone:', error);
+      throw error;
+    }
+  }
+
+  private attachPublisherEventListeners(): void {
+    if (!this.publisher) return;
+
+    // Add publisher event listeners for debugging audio issues
+    this.publisher.on('streamCreated', (event) => {
+      console.log('Publisher stream created:', event.stream);
+      console.log('Audio tracks:', event.stream.hasAudio);
+      console.log('Video tracks:', event.stream.hasVideo);
+    });
+
+    this.publisher.on('streamDestroyed', (event) => {
+      console.log('Publisher stream destroyed:', event.stream);
+    });
+
+    this.publisher.on('accessAllowed', () => {
+      console.log('Publisher access allowed (microphone/camera permissions granted)');
+    });
+
+    this.publisher.on('accessDenied', (error) => {
+      console.error('Publisher access denied:', error);
+      this.errorSubject.next('Microphone or camera access denied. Please allow permissions and refresh.');
+    });
+  }
+
+  // Get current active device information
+  getCurrentDevices(): { audioDevice: string | null, videoDevice: string | null } {
+    if (!this.publisher || !this.publisher.stream) {
+      return { audioDevice: null, videoDevice: null };
+    }
+
+    // Note: OpenTok doesn't directly expose device IDs from the publisher
+    // This information would need to be tracked separately or retrieved from getUserMedia
+    return {
+      audioDevice: null, // Would need to be tracked during device switching
+      videoDevice: null  // Would need to be tracked during device switching
+    };
+  }
+
 }
