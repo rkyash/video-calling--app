@@ -826,7 +826,18 @@ export class OpenTokService {
       console.log('Video toggle starting:', { 
         wasVideoMuted: wasVideoMuted, 
         willEnableVideo: willEnableVideo,
-        currentUser: this.currentUser.name
+        currentUser: this.currentUser.name,
+        publisherExists: !!this.publisher,
+        publisherElement: !!this.publisher.element
+      });
+      
+      // Debug publisher element state before toggle
+      const publisherContainer = document.getElementById('publisher');
+      console.log('Publisher container before toggle:', {
+        containerExists: !!publisherContainer,
+        containerChildren: publisherContainer?.children.length || 0,
+        containerDisplay: publisherContainer ? window.getComputedStyle(publisherContainer).display : 'N/A',
+        publisherElementAttached: publisherContainer && this.publisher.element ? publisherContainer.contains(this.publisher.element) : false
       });
       
       // Toggle the OpenTok publisher video
@@ -848,11 +859,37 @@ export class OpenTokService {
       // Force participants update to trigger Angular template updates
       this.participantsSubject.next([...this.participants]);
       
-      // Additional delayed update to ensure state synchronization
+      // Additional delayed update to ensure state synchronization and fix publisher attachment
       setTimeout(() => {
         console.log('Video toggle delayed update - currentUser state:', this.currentUser);
+        
+        // Check publisher element attachment after toggle
+        const publisherContainerAfter = document.getElementById('publisher');
+        if (publisherContainerAfter && this.publisher?.element) {
+          const isAttached = publisherContainerAfter.contains(this.publisher.element);
+          console.log('Publisher element attachment check after toggle:', {
+            containerExists: !!publisherContainerAfter,
+            publisherElementExists: !!this.publisher.element,
+            isAttached: isAttached,
+            containerChildren: publisherContainerAfter.children.length
+          });
+          
+          // Fix publisher attachment if needed (similar to subscriber fix)
+          if (!isAttached) {
+            console.log('Publisher element not attached, re-attaching...');
+            publisherContainerAfter.innerHTML = '';
+            publisherContainerAfter.appendChild(this.publisher.element);
+            console.log('Publisher element re-attached successfully');
+          }
+        }
+        
         this.participantsSubject.next([...this.participants]);
       }, 100);
+    } else {
+      console.error('Cannot toggle video - publisher or currentUser not available:', {
+        publisherExists: !!this.publisher,
+        currentUserExists: !!this.currentUser
+      });
     }
   }
 
@@ -954,6 +991,16 @@ export class OpenTokService {
   stopScreenSharing(): void {
     console.log('Stopping screen sharing...');
     
+    // Debug publisher state before stopping screen share
+    const publisherContainer = document.getElementById('publisher');
+    console.log('Publisher state before stopping screen share:', {
+      publisherExists: !!this.publisher,
+      publisherElement: !!this.publisher?.element,
+      containerExists: !!publisherContainer,
+      containerChildren: publisherContainer?.children.length || 0,
+      publisherAttached: publisherContainer && this.publisher?.element ? publisherContainer.contains(this.publisher.element) : false
+    });
+    
     if (this.screenPublisher && this.currentUser?.isScreenSharing) {
       console.log('Unpublishing screen share stream');
       
@@ -981,6 +1028,27 @@ export class OpenTokService {
         this.participantsSubject.next([...this.participants]);
         console.log('Screen sharing state updated and signal sent');
       }
+      
+      // Debug and fix publisher attachment after stopping screen share
+      setTimeout(() => {
+        const publisherContainerAfter = document.getElementById('publisher');
+        console.log('Publisher state after stopping screen share:', {
+          publisherExists: !!this.publisher,
+          publisherElement: !!this.publisher?.element,
+          containerExists: !!publisherContainerAfter,
+          containerChildren: publisherContainerAfter?.children.length || 0,
+          publisherAttached: publisherContainerAfter && this.publisher?.element ? publisherContainerAfter.contains(this.publisher.element) : false
+        });
+        
+        // Ensure publisher element is properly attached after screen share stops
+        if (publisherContainerAfter && this.publisher?.element && !publisherContainerAfter.contains(this.publisher.element)) {
+          console.log('Publisher element detached after screen share stop, re-attaching...');
+          publisherContainerAfter.innerHTML = '';
+          publisherContainerAfter.appendChild(this.publisher.element);
+          console.log('Publisher element re-attached after screen share stop');
+        }
+      }, 200);
+      
     } else {
       console.log('Screen sharing already stopped or not active');
     }
