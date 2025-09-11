@@ -721,7 +721,8 @@ export class OpenTokService {
             isRecording: data.isRecording,
             recordingStartTime: data.recordingStartTime
           });
-          this.meetingRoomComponent.handleRecordingStatusSignal(data.isRecording, 'Recording in progress', data.recordingStartTime);
+          if(this.currentUser?.isHost === false)
+            this.meetingRoomComponent.handleRecordingStatusSignal(data.isRecording, 'Recording in progress', data.recordingStartTime);
         }
         break;
     }

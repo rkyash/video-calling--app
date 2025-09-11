@@ -61,7 +61,7 @@ export class AuthService {
     }
   }
 
- 
+
   /**
    * Logout user
    */
@@ -71,7 +71,9 @@ export class AuthService {
     this._isAuthenticated.set(false);
     this._currentUser.set(null);
     this.updateAuthState();
-    this.router.navigate(['/login']);
+    setTimeout(function afterTwoSeconds() {
+      window.close();
+    }, 2000);
   }
 
   /**

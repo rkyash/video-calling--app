@@ -96,7 +96,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
     // Set up the meeting service reference for chat functionality
     this.openTokService.setMeetingService(this.meetingService);
-    
+
     // Set up meeting room component reference for recording status signals
     this.openTokService.setMeetingRoomComponent(this);
 
@@ -532,10 +532,10 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   private async performDisconnect(): Promise<void> {
     // Show loading indicator
     this.isDisconnecting = true;
-    
+
     try {
       console.log('Starting disconnect process...');
-      
+
       // Call disconnect API and wait for response
       await this.meetingService.disconnectParticipant();
       console.log('API disconnect successful');
@@ -546,26 +546,30 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       // Disconnect from OpenTok session
       this.openTokService.disconnect();
       this.authService.logout();
-      
+
       console.log('Disconnect process completed successfully');
-      
+
       // Hide loading indicator before navigation
       this.isDisconnecting = false;
-      
+     
       // Close the window after successful disconnect
+       setTimeout(function afterTwoSeconds() {
+        window.close();
+      }, 2000);
       this.router.navigate(['/']);
+
 
     } catch (error) {
       console.error('Error during disconnect:', error);
-      
+
       // Even if API call fails, still perform local cleanup and close
       this.meetingService.participantLeft(this.currentUser?.name || 'Participant');
       this.openTokService.disconnect();
       this.authService.logout();
-      
+
       // Hide loading indicator before navigation
       this.isDisconnecting = false;
-      
+
       this.router.navigate(['/']);
     }
   }
@@ -680,10 +684,10 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
   // Handle recording status signals from other participants
   handleRecordingStatusSignal(isRecording: boolean, message: string, recordingStartTime?: string): void {
     console.log(`Received recording status signal: ${message}`, { isRecording, recordingStartTime });
-    
+
     // Update local recording state to match the signal
     this.isRecording = isRecording;
-    
+
     // Start or stop the recording timer based on the signal
     if (isRecording && recordingStartTime) {
       // Use the host's recording start time for synchronization
@@ -698,7 +702,7 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       this.stopRecordingTimer();
       this.toastService.info('Recording', message || 'Recording stopped');
     }
-    
+
     // Force change detection
     this.cdr.detectChanges();
   }
