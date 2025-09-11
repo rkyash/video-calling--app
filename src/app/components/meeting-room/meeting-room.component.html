@@ -373,6 +373,11 @@
         </div>
     </div>
 
+    <!-- Participants Panel Backdrop -->
+    @if (isParticipantsOpen) {
+    <div class="panel-backdrop" (click)="toggleParticipants()"></div>
+    }
+
     <!-- Participants Panel -->
     <div class="participants-panel" [class.open]="isParticipantsOpen">
         <div class="panel-header">

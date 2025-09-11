@@ -778,6 +778,17 @@
       }
     }
 
+    .panel-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1100;
+      cursor: pointer;
+    }
+
     .participants-panel {
       position: absolute;
       right: 0;
@@ -790,6 +801,8 @@
       transition: transform 0.3s ease;
       display: flex;
       flex-direction: column;
+      z-index: 1200;
+      box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
 
       &.open {
         transform: translateX(0);
@@ -1082,7 +1095,69 @@
 
       .chat-sidebar,
       .participants-panel {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         width: 100%;
+        z-index: 1500;
+        background: var(--dark-surface);
+        
+        &.open {
+          transform: translateX(0);
+        }
+        
+        &:not(.open) {
+          transform: translateX(100%);
+        }
+      }
+      
+      .participants-panel {
+        .panel-header {
+          padding: 1.25rem;
+          background: var(--dark-bg);
+          
+          h3 {
+            font-size: 1.125rem;
+          }
+          
+          .panel-close {
+            padding: 0.75rem;
+            font-size: 1.25rem;
+          }
+        }
+        
+        .participants-list {
+          padding: 1rem;
+          
+          .participant-item {
+            padding: 1.25rem;
+            margin-bottom: 0.75rem;
+            
+            .participant-info {
+              .participant-avatar {
+                width: 48px;
+                height: 48px;
+              }
+              
+              .participant-details {
+                .participant-name {
+                  font-size: 1rem;
+                  margin-bottom: 0.5rem;
+                }
+              }
+            }
+            
+            .participant-actions {
+              .action-button {
+                width: 40px;
+                height: 40px;
+                font-size: 1rem;
+              }
+            }
+          }
+        }
       }
 
       .meeting-controls {
